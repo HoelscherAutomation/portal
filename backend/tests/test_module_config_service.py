@@ -78,6 +78,33 @@ async def test_redact_marks_unset_secret_as_not_set():
     assert redacted["anthropic"]["api_key"] == {"_set": False}
 
 
+async def test_load_merges_defaults_for_missing_fields():
+    """Rows persisted before a new schema field was added must still surface
+    that field (with default value) on read — otherwise the frontend crashes
+    on `config.<new_field>.<x>` and dispatchers must defensive-`.get()` everywhere."""
+    import app.database as db_module
+    from app.models import ModuleConfig
+    # Insert a row directly via raw SQL/ORM that lacks the `reranker` field
+    # (mimicking a row saved before P1.3b was deployed)
+    async with db_module.async_session_maker() as session:
+        cfg = ModuleConfig(module_key="ask-docs", config={
+            "llm_mode": "anthropic",
+            "anthropic": {"api_key": None, "model": "claude-sonnet-4-6", "max_tokens": 1024},
+            "ollama": {"url": "", "model": "", "max_tokens": 1024},
+            "hoelscher_proxy": {},
+            # NOTE: no "reranker" key — exactly the pre-P1.3b shape
+        })
+        session.add(cfg)
+        await session.commit()
+
+    config = await load_config("ask-docs")
+    # Missing field backfilled from schema defaults
+    assert config["reranker"] == {"enabled": False}
+    # Existing fields preserved verbatim
+    assert config["anthropic"]["model"] == "claude-sonnet-4-6"
+    assert config["llm_mode"] == "anthropic"
+
+
 async def test_save_refreshes_updated_at_on_upsert():
     """SQLAlchemy onupdate hook does NOT fire for dialect-level INSERT ON CONFLICT;
     save_config must explicitly set updated_at in the conflict clause."""

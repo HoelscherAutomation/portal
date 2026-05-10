@@ -3,6 +3,9 @@
 Lazy-loads the model on first use (saves ~80MB RAM if rerank is never enabled).
 Reuses the same encoder instance across calls — first call has ~5-10s latency
 for model download + load, subsequent calls are ~50-200ms for typical top-K.
+
+For the cross-process singleton (one model load per backend process, not per
+chat request), see `app.modules.ask_docs.routes._get_reranker`.
 """
 import logging
 from typing import Any
@@ -10,6 +13,16 @@ from typing import Any
 from app.modules.ask_docs.prompts import FormattedSource
 
 logger = logging.getLogger(__name__)
+
+
+class RerankerUnavailableError(Exception):
+    """Raised when the fastembed model cannot be loaded.
+
+    Wraps ImportError (ONNX runtime missing on this arch), OSError /
+    ConnectionError (model download failed), or RuntimeError (init crash)
+    so the SSE error path can surface a single admin-friendly message
+    instead of an unactionable Python traceback in the browser.
+    """
 
 
 class Reranker:
@@ -32,8 +45,14 @@ class Reranker:
     def _ensure_loaded(self) -> None:
         if self._encoder is None:
             logger.info("Loading reranker model %s (first use; ~80MB)", self._model_name)
-            from fastembed.rerank.cross_encoder import TextCrossEncoder
-            self._encoder = TextCrossEncoder(model_name=self._model_name)
+            try:
+                from fastembed.rerank.cross_encoder import TextCrossEncoder
+                self._encoder = TextCrossEncoder(model_name=self._model_name)
+            except Exception as exc:
+                raise RerankerUnavailableError(
+                    "Cross-encoder reranking model could not be loaded — disable "
+                    "'Cross-encoder reranking' in Ask Docs config or contact support."
+                ) from exc
 
     def rerank(
         self,
@@ -50,5 +69,12 @@ class Reranker:
             return []
         self._ensure_loaded()
         scores = list(self._encoder.rerank(query, [s.content for s in sources]))
-        scored = sorted(zip(scores, sources), key=lambda pair: pair[0], reverse=True)
+        # strict=True catches a model-output bug where the encoder returns a
+        # different number of scores than passages — without it, zip would
+        # silently truncate and the orchestrator would drop sources.
+        scored = sorted(
+            zip(scores, sources, strict=True),
+            key=lambda pair: pair[0],
+            reverse=True,
+        )
         return [src for _, src in scored[:top_n]]

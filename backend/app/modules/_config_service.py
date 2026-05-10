@@ -42,14 +42,38 @@ def _set_path(d: dict, path: tuple[str, ...], value: Any) -> None:
     cur[path[-1]] = value
 
 
+def _merge_with_defaults(defaults: dict, value: dict) -> dict:
+    """Recursively backfill missing keys from defaults into value.
+
+    Persisted-value wins where present; defaults fill in any missing keys.
+    This makes load_config idempotent w.r.t. schema additions: a row saved
+    before a new field was introduced still presents that field on read.
+    """
+    out = {**defaults}
+    for k, v in value.items():
+        default_v = out.get(k)
+        if isinstance(v, dict) and isinstance(default_v, dict):
+            out[k] = _merge_with_defaults(default_v, v)
+        else:
+            out[k] = v
+    return out
+
+
 async def _load_in_session(session: AsyncSession, module_key: str) -> dict:
-    """Load + decrypt a config inside an existing session. Returns defaults if no row."""
+    """Load + decrypt a config inside an existing session. Returns defaults if no row.
+
+    For existing rows, schema-defined defaults are merged in so any field added
+    after the row was last saved still appears (with its default value) on read.
+    Frontend + factory code can rely on the contract that all schema fields are
+    present after `load_config`.
+    """
     row = (await session.execute(
         select(ModuleConfig).where(ModuleConfig.module_key == module_key)
     )).scalar_one_or_none()
     if row is None:
         return {**DEFAULTS[module_key]}
-    return unwrap_encrypted_values(row.config)
+    raw = unwrap_encrypted_values(row.config)
+    return _merge_with_defaults(DEFAULTS[module_key], raw)
 
 
 async def load_config(module_key: str) -> dict:

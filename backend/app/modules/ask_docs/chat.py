@@ -54,6 +54,13 @@ class ChatOrchestrator:
                 embeddings=self._embeddings,
                 vectorstore=self._vectorstore,
             )
+            if not candidates:
+                # Reranker enabled but nothing to rerank — surface so an admin who
+                # toggled the feature on against an empty corpus has a signal.
+                logger.info(
+                    "reranker enabled but retrieval returned 0 candidates "
+                    "(corpus empty?) — model will not be exercised"
+                )
             # asyncio.to_thread keeps CPU-bound rerank off the event loop
             sources = await asyncio.to_thread(
                 self._reranker.rerank, query, candidates, self._top_k

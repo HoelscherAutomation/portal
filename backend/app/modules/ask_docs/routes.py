@@ -28,6 +28,24 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Module-level Reranker singleton — survives across chat requests so the ~80MB
+# fastembed model loads ONCE per backend process, not once per request. Without
+# this, every chat with rerank enabled would pay the 5-10s model load latency.
+_reranker_singleton: Reranker | None = None
+
+
+def _get_reranker() -> Reranker:
+    """Return the per-process Reranker singleton, constructing on first call.
+
+    The Reranker constructor itself is cheap (no model load) — the model loads
+    lazily on the first .rerank() call against this instance. Once loaded, the
+    encoder lives in memory for the rest of the process lifetime.
+    """
+    global _reranker_singleton
+    if _reranker_singleton is None:
+        _reranker_singleton = Reranker()
+    return _reranker_singleton
+
 _ALLOWED_CONTENT_TYPES = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -182,9 +200,9 @@ async def _make_orchestrator():
     llm, mode = await make_llm_client()
     config = await load_config("ask-docs")
     reranker_enabled = config.get("reranker", {}).get("enabled", False)
-    # Lazy: constructing Reranker doesn't load the model. The first chat with
-    # reranker_enabled triggers the actual model download/load (~5-10s).
-    reranker = Reranker() if reranker_enabled else None
+    # Use the module-level singleton — model loads ONCE per process on first
+    # actual rerank call, not once per chat request.
+    reranker = _get_reranker() if reranker_enabled else None
     return ChatOrchestrator(
         embeddings=_make_embeddings_client(),
         vectorstore=_make_vectorstore(),

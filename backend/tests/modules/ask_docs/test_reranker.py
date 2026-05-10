@@ -56,3 +56,26 @@ def test_rerank_empty_input_returns_empty_without_loading():
     r = Reranker()
     assert r.rerank("q", [], top_n=8) == []
     assert r._encoder is None  # never loaded
+
+
+def test_rerank_strict_zip_catches_score_count_mismatch():
+    """If the encoder ever returns a different number of scores than passages,
+    fail loud rather than silently dropping sources via a short zip."""
+    fake = _FakeEncoder(scores=[0.5, 0.3])  # only 2 scores
+    r = Reranker(_encoder=fake)
+    sources = [_src(1, "a"), _src(2, "b"), _src(3, "c")]  # 3 sources
+    with pytest.raises(ValueError):  # zip(strict=True) raises ValueError on mismatch
+        r.rerank("q", sources, top_n=3)
+
+
+def test_get_reranker_returns_singleton_across_calls():
+    """The module-level singleton in routes._get_reranker must reuse the same
+    Reranker instance across chat requests — otherwise the model reloads on every
+    request, defeating the entire lazy-load optimization."""
+    from app.modules.ask_docs import routes
+
+    routes._reranker_singleton = None  # reset to start clean
+    first = routes._get_reranker()
+    second = routes._get_reranker()
+    assert first is second
+    routes._reranker_singleton = None  # cleanup so other tests start clean

@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     ask_docs_embedding_model: str = "nomic-embed-text"
     ask_docs_chunk_size_tokens: int = 1024
     ask_docs_chunk_overlap_tokens: int = 128
+    # Ask Docs (P1.2 — chat)
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-sonnet-4-6"
+    ask_docs_top_k: int = 8
+    ask_docs_max_answer_tokens: int = 1024
 
 
 @lru_cache

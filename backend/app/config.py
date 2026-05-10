@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     redis_url: str
     secret_key: str
     cookie_secure: bool = False
+    cors_origins: list[str] = ["http://localhost:5173"]
 
 
 @lru_cache

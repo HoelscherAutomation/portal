@@ -17,7 +17,7 @@ from app.database import get_async_session
 from app.models import AskDocsDocument, User
 from app.modules.ask_docs.chat import ChatOrchestrator
 from app.modules.ask_docs.embeddings import EmbeddingsClient
-from app.modules.ask_docs.llm import AnthropicChatClient
+from app.modules.ask_docs.llm_factory import make_llm_client
 from app.modules.ask_docs.models import AskDocsStatus
 from app.modules.ask_docs.schemas import ChatRequest, DocumentRead
 from app.modules.ask_docs.vectorstore import VectorStore
@@ -174,20 +174,15 @@ def _make_vectorstore():
     return VectorStore(url=s.qdrant_url, collection_name="ask_docs_chunks", vector_size=768)
 
 
-def _make_llm():
+async def _make_orchestrator():
+    """Build the chat orchestrator using the customer's saved LLM config."""
     s = get_settings()
-    if not s.anthropic_api_key:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
-    return AnthropicChatClient(api_key=s.anthropic_api_key, model=s.anthropic_model)
-
-
-def _make_orchestrator():
-    s = get_settings()
+    llm, mode = await make_llm_client()
     return ChatOrchestrator(
         embeddings=_make_embeddings_client(),
         vectorstore=_make_vectorstore(),
-        llm=_make_llm(),
-        llm_mode="anthropic",
+        llm=llm,
+        llm_mode=mode,
         top_k=s.ask_docs_top_k,
         max_answer_tokens=s.ask_docs_max_answer_tokens,
     )
@@ -207,7 +202,7 @@ async def chat(
     if not payload.query.strip():
         raise HTTPException(status_code=400, detail="Query must not be empty")
 
-    orchestrator = _make_orchestrator()
+    orchestrator = await _make_orchestrator()
 
     async def _event_stream() -> AsyncIterator[bytes]:
         try:

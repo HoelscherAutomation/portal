@@ -22,9 +22,11 @@ async def test_chat_requires_auth(client: AsyncClient):
 
 async def test_chat_rejects_empty_query(client: AsyncClient, monkeypatch):
     # Avoid 503 by stubbing orchestrator construction (settings has no API key in test)
+    async def _fake_make():
+        return None
     monkeypatch.setattr(
         "app.modules.ask_docs.routes._make_orchestrator",
-        lambda: None,
+        _fake_make,
     )
     await _login(client)
     response = await client.post("/api/modules/ask-docs/chat", json={"query": "   "})
@@ -44,9 +46,11 @@ async def test_chat_streams_sse_events(client: AsyncClient, monkeypatch):
         async def close_clients(self):
             return None
 
+    async def _fake_make():
+        return FakeOrch()
     monkeypatch.setattr(
         "app.modules.ask_docs.routes._make_orchestrator",
-        lambda: FakeOrch(),
+        _fake_make,
     )
 
     await _login(client)
@@ -74,9 +78,11 @@ async def test_chat_emits_error_event_on_orchestrator_failure(client: AsyncClien
         async def close_clients(self):
             return None
 
+    async def _fake_make():
+        return FailingOrch()
     monkeypatch.setattr(
         "app.modules.ask_docs.routes._make_orchestrator",
-        lambda: FailingOrch(),
+        _fake_make,
     )
 
     await _login(client)

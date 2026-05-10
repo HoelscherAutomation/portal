@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
+    import time
+
     # Startup: verify the database is reachable so failures surface early
     # instead of as an opaque 500 on the first request.
     try:
@@ -28,7 +31,39 @@ async def lifespan(app: FastAPI):
         logger.error("Database connectivity check failed at startup: %s", exc)
         raise
 
+    settings = get_settings()
+    phone_home_task = None
+    if settings.oc_url and settings.oc_token:
+        from app.services.phone_home import phone_home_loop
+
+        logger.info(
+            "Phone-home enabled — target=%s, interval=%ss",
+            settings.oc_url,
+            settings.phone_home_interval_seconds,
+        )
+        phone_home_task = asyncio.create_task(
+            phone_home_loop(
+                oc_url=settings.oc_url,
+                oc_token=settings.oc_token,
+                portal_version=settings.portal_version,
+                interval_seconds=settings.phone_home_interval_seconds,
+                started_at=time.monotonic(),
+            )
+        )
+    elif settings.oc_url and not settings.oc_token:
+        logger.warning("OC_URL set but OC_TOKEN missing — phone-home disabled")
+    else:
+        logger.info("Phone-home not configured (OC_URL unset) — running standalone")
+
     yield
+
+    if phone_home_task is not None:
+        phone_home_task.cancel()
+        try:
+            await phone_home_task
+        except asyncio.CancelledError:
+            pass
+
     await engine.dispose()
 
 

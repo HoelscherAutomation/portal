@@ -21,8 +21,8 @@ REGISTRY: tuple[ModuleDef, ...] = (
         key="ask-docs",
         name="Ask Docs",
         description="AI document Q&A with mandatory citations.",
-        status="preview",
-        target="Day 1 (P1)",
+        status="live",
+        target="P1 (active)",
     ),
     ModuleDef(
         key="announcements",

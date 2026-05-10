@@ -70,7 +70,19 @@ All configurable via `.env`.
 - Acks each action back to OC with ok/error
 - Opt-in: if `OC_URL` is unset, the loop never starts (portal runs standalone)
 
+### Ask Docs ingestion (P1.1)
+- New services in compose: `qdrant` (vector store), `ollama` (embeddings), `worker` (arq)
+- `ask-docs` module is now LIVE in the registry (was preview)
+- Upload PDF/DOCX/TXT/MD via `/modules/ask-docs/library` (also via `POST /api/modules/ask-docs/documents`)
+- Background worker parses → chunks (1024 tok / 128 overlap) → embeds via local Ollama → stores in Qdrant
+- Library page shows status: pending → indexing → indexed (or failed with error)
+- Delete removes both the file on disk and its vectors from Qdrant
+- First-boot pulls `nomic-embed-text` (~300MB) into Ollama; ~30-60s on first install
+- Chat interface lands in P1.2
+
 ## What's next
 
-P0d.3 deploys the OC to Outpost (Caddy + Cloudflare DNS + TLS at `oc.hoelscherautomation.com`).
-P1 adds the Ask Docs RAG module — the first live module that actually does real work.
+P1.2 adds the chat interface (Anthropic streaming + citation pills + source preview pane).
+P1.3 adds LLM mode config UI + reranker option.
+P1.4 adds the module admin dashboard (doc count, query log, usage stats).
+P1.5 adds watched folder + backup/restore.

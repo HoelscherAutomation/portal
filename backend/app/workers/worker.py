@@ -9,6 +9,12 @@ import logging
 from arq.connections import RedisSettings
 
 from app.config import get_settings
+
+# Import all models so the SQLAlchemy registry can resolve cross-table FKs
+# (e.g. ask_docs_documents.uploaded_by → users.id). Without this, a worker
+# task that loads only AskDocsDocument will hit NoReferencedTableError on
+# flush/commit because the 'users' table isn't registered.
+import app.models  # noqa: F401
 from app.modules.ask_docs.tasks import delete_document_vectors, index_document
 
 logger = logging.getLogger(__name__)

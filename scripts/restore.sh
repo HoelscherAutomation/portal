@@ -87,9 +87,13 @@ if [[ $ASSUME_YES -ne 1 ]]; then
     fi
 fi
 
-# ── 4. Stop write-side services ──────────────────────────────────────────────
-echo "▶ Stopping backend, worker, frontend"
-docker compose stop backend worker frontend
+# ── 4. Stop the write-side services that don't need to be up for restore ───
+# We keep `backend` UP because steps 7+8 use `docker compose exec backend`
+# (Qdrant snapshot upload via the Python helper, uploads dir cleanup).
+# `worker` is stopped so arq jobs can't pick up half-restored DB state.
+# `frontend` is stopped so admins can't trigger writes mid-restore.
+echo "▶ Stopping worker, frontend (backend stays up for restore helpers)"
+docker compose stop worker frontend
 
 # ── 5. Apply .env if requested ───────────────────────────────────────────────
 if [[ $APPLY_ENV -eq 1 ]]; then
@@ -119,8 +123,11 @@ docker compose exec -T backend find /app/data/uploads -mindepth 1 -delete
 docker cp "$WORK/uploads/." "$BACKEND_CONTAINER:/app/data/uploads/"
 
 # ── 9. Restart write-side services ───────────────────────────────────────────
-echo "▶ Restarting backend, worker, frontend"
-docker compose start backend worker frontend
+# Backend wasn't stopped, but restart it so the SECRET_KEY change (if any)
+# from step 5 takes effect — pydantic-settings caches at import time.
+echo "▶ Restarting backend (for env reload), starting worker + frontend"
+docker compose restart backend
+docker compose start worker frontend
 
 # ── 10. Wait for backend healthy ─────────────────────────────────────────────
 echo "▶ Waiting for backend to be healthy"

@@ -53,7 +53,7 @@ async def test_restore_snapshot_uploads_file():
     with patch("scripts.qdrant_snapshot.httpx.AsyncClient") as fake_client_cls, \
          patch("scripts.qdrant_snapshot.Path") as fake_path_cls:
         fake_client = AsyncMock()
-        fake_client.put.return_value = fake_response
+        fake_client.post.return_value = fake_response
         fake_client_cls.return_value.__aenter__.return_value = fake_client
         # Path("/tmp/snap").read_bytes() → b"..." (mocked)
         fake_file = MagicMock()
@@ -67,8 +67,8 @@ async def test_restore_snapshot_uploads_file():
             snapshot_path="/tmp/snap.snapshot",
         )
 
-    fake_client.put.assert_awaited_once()
-    url = fake_client.put.await_args.args[0]
+    fake_client.post.assert_awaited_once()
+    url = fake_client.post.await_args.args[0]
     assert "/collections/ask_docs_chunks/snapshots/upload" in url
 
 
@@ -80,7 +80,7 @@ async def test_restore_snapshot_raises_on_non_200():
     with patch("scripts.qdrant_snapshot.httpx.AsyncClient") as fake_client_cls, \
          patch("scripts.qdrant_snapshot.Path") as fake_path_cls:
         fake_client = AsyncMock()
-        fake_client.put.return_value = fake_response
+        fake_client.post.return_value = fake_response
         fake_client_cls.return_value.__aenter__.return_value = fake_client
         fake_file = MagicMock()
         fake_file.read_bytes.return_value = b"x"

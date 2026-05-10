@@ -50,7 +50,7 @@ async def restore_snapshot(
     data = path.read_bytes()
     url = f"{qdrant_url.rstrip('/')}/collections/{collection}/snapshots/upload?priority=snapshot"
     async with httpx.AsyncClient(timeout=600.0) as client:
-        response = await client.put(
+        response = await client.post(
             url,
             files={"snapshot": (path.name, data, "application/octet-stream")},
         )

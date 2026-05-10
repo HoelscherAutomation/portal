@@ -8,22 +8,32 @@ async function request<T>(
   path: string,
   init: RequestInit = {}
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-    headers: {
-      ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...init.headers
-    },
-    ...init
-  });
+  const baseHeaders: Record<string, string> =
+    init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
+  const initHeaders = (init.headers ?? {}) as Record<string, string>;
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      credentials: 'include',
+      headers: { ...baseHeaders, ...initHeaders }
+    });
+  } catch (networkErr) {
+    // fetch() itself throws on network failure / DNS / CORS denial.
+    throw {
+      status: 0,
+      detail: 'Network error — could not reach the server'
+    } satisfies ApiError;
+  }
 
   if (!response.ok) {
     let detail = response.statusText;
     try {
       const body = await response.json();
-      detail = body.detail ?? detail;
+      detail = body?.detail ?? body?.message ?? detail;
     } catch {
-      // ignore JSON parse errors
+      // body wasn't JSON; keep statusText
     }
     throw { status: response.status, detail } satisfies ApiError;
   }

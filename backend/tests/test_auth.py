@@ -18,6 +18,23 @@ async def _create_test_user(email: str, password: str) -> None:
         break
 
 
+async def _create_user(email: str, password: str, *, superuser: bool = False) -> None:
+    async for session in get_async_session():
+        async for user_db in get_user_db(session):
+            manager = UserManager(user_db)
+            await manager.create(
+                UserCreate(
+                    email=email,
+                    password=password,
+                    is_active=True,
+                    is_superuser=superuser,
+                ),
+                safe=False,
+            )
+            break
+        break
+
+
 async def test_me_unauthenticated_returns_401(client: AsyncClient):
     response = await client.get("/api/me")
     assert response.status_code == 401

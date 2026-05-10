@@ -16,3 +16,7 @@ class DocumentRead(BaseModel):
     chunk_count: int
     error_message: str | None
     uploaded_at: datetime
+
+
+class ChatRequest(BaseModel):
+    query: str

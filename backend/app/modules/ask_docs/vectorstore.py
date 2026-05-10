@@ -91,3 +91,19 @@ class VectorStore:
                 )
             ),
         )
+
+    async def search_by_doc_chunk(self, *, doc_id: str, chunk_index: int) -> dict | None:
+        """Find one chunk's payload by doc_id + chunk_index. Returns None if missing."""
+        results, _ = await self._get_client().scroll(
+            collection_name=self._collection,
+            scroll_filter=qmodels.Filter(
+                must=[
+                    qmodels.FieldCondition(key="doc_id", match=qmodels.MatchValue(value=doc_id)),
+                    qmodels.FieldCondition(key="chunk_index", match=qmodels.MatchValue(value=chunk_index)),
+                ],
+            ),
+            limit=1,
+        )
+        if not results:
+            return None
+        return results[0].payload

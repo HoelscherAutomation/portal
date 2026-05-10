@@ -1,10 +1,13 @@
 """HTTP routes for Ask Docs document management."""
+import json
 import logging
 import uuid
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 from arq.connections import RedisSettings, create_pool
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +15,12 @@ from app.auth.backend import current_active_user
 from app.config import get_settings
 from app.database import get_async_session
 from app.models import AskDocsDocument, User
+from app.modules.ask_docs.chat import ChatOrchestrator
+from app.modules.ask_docs.embeddings import EmbeddingsClient
+from app.modules.ask_docs.llm import AnthropicChatClient
 from app.modules.ask_docs.models import AskDocsStatus
-from app.modules.ask_docs.schemas import DocumentRead
+from app.modules.ask_docs.schemas import ChatRequest, DocumentRead
+from app.modules.ask_docs.vectorstore import VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -155,3 +162,74 @@ async def delete_document(
         logger.exception("Failed to enqueue delete_document_vectors for %s", document_id)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _make_embeddings_client():
+    s = get_settings()
+    return EmbeddingsClient(url=s.ollama_url, model=s.ask_docs_embedding_model)
+
+
+def _make_vectorstore():
+    s = get_settings()
+    return VectorStore(url=s.qdrant_url, collection_name="ask_docs_chunks", vector_size=768)
+
+
+def _make_llm():
+    s = get_settings()
+    if not s.anthropic_api_key:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
+    return AnthropicChatClient(api_key=s.anthropic_api_key, model=s.anthropic_model)
+
+
+def _make_orchestrator():
+    s = get_settings()
+    return ChatOrchestrator(
+        embeddings=_make_embeddings_client(),
+        vectorstore=_make_vectorstore(),
+        llm=_make_llm(),
+        llm_mode="anthropic",
+        top_k=s.ask_docs_top_k,
+        max_answer_tokens=s.ask_docs_max_answer_tokens,
+    )
+
+
+@router.post("/chat")
+async def chat(
+    payload: ChatRequest,
+    user: User = Depends(current_active_user),
+):
+    if not payload.query.strip():
+        raise HTTPException(status_code=400, detail="Query must not be empty")
+
+    orchestrator = _make_orchestrator()
+
+    async def _event_stream() -> AsyncIterator[bytes]:
+        try:
+            async for event in orchestrator.run(query=payload.query, user_id=user.id):
+                yield f"data: {json.dumps(event)}\n\n".encode("utf-8")
+        finally:
+            for client in (orchestrator._embeddings, orchestrator._vectorstore):
+                try:
+                    if client is not None:
+                        await client.aclose()
+                except Exception:
+                    logger.exception("Failed to close client")
+
+    return StreamingResponse(_event_stream(), media_type="text/event-stream")
+
+
+@router.get("/chunks/{doc_id}/{chunk_index}")
+async def get_chunk(
+    doc_id: str,
+    chunk_index: int,
+    _user: User = Depends(current_active_user),
+):
+    """Fetch one chunk's payload by doc_id + chunk_index. Used by source preview."""
+    vectorstore = _make_vectorstore()
+    try:
+        payload = await vectorstore.search_by_doc_chunk(doc_id=doc_id, chunk_index=chunk_index)
+    finally:
+        await vectorstore.aclose()
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+    return payload

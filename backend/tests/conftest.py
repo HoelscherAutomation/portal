@@ -87,6 +87,23 @@ async def _truncate_users():
         await session.commit()
 
 
+@pytest.fixture(autouse=True)
+async def _reset_tenant():
+    """Reset tenant_config row 1 to defaults between tests."""
+    async with db_module.async_session_maker() as session:
+        await session.execute(
+            text(
+                "UPDATE tenant_config SET "
+                "company_name = 'My Company', "
+                "primary_color = '#6dd5fa', "
+                "logo_filename = NULL, "
+                "welcome_message = NULL "
+                "WHERE id = 1"
+            )
+        )
+        await session.commit()
+
+
 @pytest.fixture
 async def client():
     transport = ASGITransport(app=app)

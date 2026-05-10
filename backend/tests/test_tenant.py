@@ -45,3 +45,44 @@ async def test_tenant_config_authenticated_returns_default(client: AsyncClient):
     assert body["company_name"] == "My Company"
     assert body["primary_color"] == "#6dd5fa"
     assert body["logo_filename"] is None
+
+
+async def test_tenant_config_put_requires_superuser(client: AsyncClient):
+    await _create_user("user@example.com", "test-password-123")
+    await _login(client, "user@example.com", "test-password-123")
+
+    response = await client.put(
+        "/api/tenant/config",
+        json={"company_name": "Hacker Inc."},
+    )
+    assert response.status_code == 403
+
+
+async def test_tenant_config_put_updates_fields(client: AsyncClient):
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
+
+    response = await client.put(
+        "/api/tenant/config",
+        json={
+            "company_name": "Acme Co",
+            "primary_color": "#7ad27a",
+            "welcome_message": "Welcome aboard.",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["company_name"] == "Acme Co"
+    assert body["primary_color"] == "#7ad27a"
+    assert body["welcome_message"] == "Welcome aboard."
+
+
+async def test_tenant_config_put_validates_color(client: AsyncClient):
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
+
+    response = await client.put(
+        "/api/tenant/config",
+        json={"primary_color": "not-a-hex"},
+    )
+    assert response.status_code == 422

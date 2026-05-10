@@ -39,6 +39,12 @@ services:
       - portal_uploads:/app/data/uploads
     ports:
       - "${BACKEND_PORT}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=2).status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,7 +59,8 @@ services:
     ports:
       - "${FRONTEND_PORT}:5173"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:

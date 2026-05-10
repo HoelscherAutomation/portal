@@ -22,15 +22,16 @@
     busy = true;
     message = null;
     try {
+      // Upload logo first; if it fails, abort before mutating other fields.
+      if (logoFile) {
+        await uploadLogo(logoFile);
+        logoFile = null;
+      }
       await updateTenant({
         company_name: companyName,
         primary_color: primaryColor,
         welcome_message: welcomeMessage || null
       });
-      if (logoFile) {
-        await uploadLogo(logoFile);
-        logoFile = null;
-      }
       message = { kind: 'ok', text: 'Branding saved.' };
     } catch (err) {
       const detail = (err as { detail?: string }).detail;

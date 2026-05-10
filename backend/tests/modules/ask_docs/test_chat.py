@@ -69,6 +69,9 @@ async def test_orchestrator_streams_and_persists():
         assert rows[0].citation_count == 1
         assert rows[0].llm_mode == "anthropic"
         assert rows[0].tokens_used == 108
+        assert rows[0].sources_used == [
+            {"number": 1, "filename": "handbook.pdf", "page_num": 3, "content": "Carryover is 5 days."}
+        ]
 
 
 async def test_close_clients_closes_llm_too():

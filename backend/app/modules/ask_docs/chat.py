@@ -46,18 +46,16 @@ class ChatOrchestrator:
             embeddings=self._embeddings,
             vectorstore=self._vectorstore,
         )
-        yield {
-            "type": "sources",
-            "sources": [
-                {
-                    "number": s.number,
-                    "filename": s.filename,
-                    "page_num": s.page_num,
-                    "content": s.content,
-                }
-                for s in sources
-            ],
-        }
+        sources_payload = [
+            {
+                "number": s.number,
+                "filename": s.filename,
+                "page_num": s.page_num,
+                "content": s.content,
+            }
+            for s in sources
+        ]
+        yield {"type": "sources", "sources": sources_payload}
 
         user_message = build_user_message(query, sources)
         usage_holder: dict = {}
@@ -94,6 +92,7 @@ class ChatOrchestrator:
                     llm_mode=self._llm_mode,
                     tokens_used=tokens_used,
                     duration_ms=duration_ms,
+                    sources_used=sources_payload,
                 )
                 session.add(entry)
                 await session.commit()

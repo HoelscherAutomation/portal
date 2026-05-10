@@ -106,6 +106,13 @@ class ChatOrchestrator:
         duration_ms = int((time.monotonic() - started) * 1000)
         tokens_used = None
         if usage_holder:
+            # Both keys are part of the on_final_usage contract — log if a client
+            # ever sends only one (silently undercounting cost in the dashboard).
+            if "input_tokens" not in usage_holder or "output_tokens" not in usage_holder:
+                logger.warning(
+                    "LLM client returned partial usage dict (missing input or output): %r",
+                    usage_holder,
+                )
             tokens_used = usage_holder.get("input_tokens", 0) + usage_holder.get("output_tokens", 0)
 
         try:

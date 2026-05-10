@@ -1,15 +1,19 @@
 """Dashboard payload computation. Single function returns everything the
 admin dashboard page needs in one round-trip."""
+import logging
 from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.database as db_module
 from app.models import AskDocsDocument, AskDocsQuery
 from app.modules._config_service import load_config
 from app.modules.ask_docs.models import AskDocsStatus
 from app.modules.ask_docs.pricing import estimate_cost_usd
+
+logger = logging.getLogger(__name__)
 
 _ALL_STATUSES = ("pending", "indexing", "indexed", "failed")
 
@@ -33,7 +37,7 @@ async def compute_dashboard() -> dict[str, Any]:
     }
 
 
-async def _doc_breakdown(session) -> dict[str, Any]:
+async def _doc_breakdown(session: AsyncSession) -> dict[str, Any]:
     rows = (await session.execute(
         select(AskDocsDocument.status, func.count(AskDocsDocument.id))
         .group_by(AskDocsDocument.status)
@@ -42,6 +46,11 @@ async def _doc_breakdown(session) -> dict[str, Any]:
     for status, count in rows:
         # status is the SQLAlchemy enum value
         key = status.value if hasattr(status, "value") else str(status)
+        if key not in by_status:
+            # Schema added a new status without updating _ALL_STATUSES — surface it
+            # so the dashboard frontend's typed shape doesn't silently drift.
+            logger.warning("Unknown ask_docs_documents.status value %r (count=%d)", key, count)
+            continue
         by_status[key] = count
 
     total = sum(by_status.values())
@@ -57,7 +66,7 @@ async def _doc_breakdown(session) -> dict[str, Any]:
     }
 
 
-async def _query_30d_stats(session) -> dict[str, Any]:
+async def _query_30d_stats(session: AsyncSession) -> dict[str, Any]:
     # Count + sum + avg latency + p95 latency, all in one query
     row = (await session.execute(text("""
         SELECT

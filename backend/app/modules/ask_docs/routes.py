@@ -66,36 +66,33 @@ def _ask_docs_dir() -> Path:
     return path
 
 
-async def _enqueue_index(doc_id: str) -> None:
-    """Enqueue an index_document arq job. Overridable in tests."""
+async def _enqueue_arq_job(job_name: str, *job_args) -> None:
+    """Enqueue any arq job by name. Single Redis pool setup shared across callers.
+
+    Wrapping `_enqueue_index` and `_enqueue_delete` (the only current callers)
+    around this means future job types add one line, not 14.
+    """
     from urllib.parse import urlparse
-    settings = get_settings()
-    url = urlparse(settings.redis_url)
+    url = urlparse(get_settings().redis_url)
     redis = await create_pool(RedisSettings(
         host=url.hostname or "redis",
         port=url.port or 6379,
         database=int(url.path.lstrip("/") or "0"),
     ))
     try:
-        await redis.enqueue_job("index_document", doc_id)
+        await redis.enqueue_job(job_name, *job_args)
     finally:
         await redis.close()
+
+
+async def _enqueue_index(doc_id: str) -> None:
+    """Enqueue an index_document arq job. Overridable in tests."""
+    await _enqueue_arq_job("index_document", doc_id)
 
 
 async def _enqueue_delete(doc_id: str) -> None:
     """Enqueue a delete_document_vectors arq job. Overridable in tests."""
-    from urllib.parse import urlparse
-    settings = get_settings()
-    url = urlparse(settings.redis_url)
-    redis = await create_pool(RedisSettings(
-        host=url.hostname or "redis",
-        port=url.port or 6379,
-        database=int(url.path.lstrip("/") or "0"),
-    ))
-    try:
-        await redis.enqueue_job("delete_document_vectors", doc_id)
-    finally:
-        await redis.close()
+    await _enqueue_arq_job("delete_document_vectors", doc_id)
 
 
 @router.post("/documents", response_model=DocumentRead, status_code=status.HTTP_202_ACCEPTED)

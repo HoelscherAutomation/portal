@@ -45,15 +45,20 @@ async def restore_snapshot(
     collection: str,
     snapshot_path: str,
 ) -> None:
-    """Upload a local snapshot file to Qdrant's recover endpoint."""
+    """Upload a local snapshot file to Qdrant's recover endpoint.
+
+    Streams the file via httpx's file-handle multipart support — does NOT
+    read the whole snapshot into memory. Multi-GB Qdrant snapshots would
+    OOM the backend container otherwise.
+    """
     path = Path(snapshot_path)
-    data = path.read_bytes()
     url = f"{qdrant_url.rstrip('/')}/collections/{collection}/snapshots/upload?priority=snapshot"
     async with httpx.AsyncClient(timeout=600.0) as client:
-        response = await client.post(
-            url,
-            files={"snapshot": (path.name, data, "application/octet-stream")},
-        )
+        with path.open("rb") as fh:
+            response = await client.post(
+                url,
+                files={"snapshot": (path.name, fh, "application/octet-stream")},
+            )
         if response.status_code != 200:
             raise SnapshotError(
                 f"Qdrant returned {response.status_code} on snapshot upload: {response.text[:200]}"

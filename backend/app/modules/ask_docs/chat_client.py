@@ -14,3 +14,8 @@ class ChatClient(Protocol):
         max_tokens: int,
         on_final_usage: Callable[[dict], None] | None = None,
     ) -> AsyncIterator[str]: ...
+
+    async def aclose(self) -> None:
+        """Close the underlying httpx connection pool. Called by ChatOrchestrator
+        cleanup. Both AnthropicChatClient + OllamaChatClient implement this."""
+        ...

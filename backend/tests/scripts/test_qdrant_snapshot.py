@@ -55,9 +55,10 @@ async def test_restore_snapshot_uploads_file():
         fake_client = AsyncMock()
         fake_client.post.return_value = fake_response
         fake_client_cls.return_value.__aenter__.return_value = fake_client
-        # Path("/tmp/snap").read_bytes() → b"..." (mocked)
+        # Path("/tmp/snap").open("rb") → context manager yielding fake fh (streaming)
         fake_file = MagicMock()
-        fake_file.read_bytes.return_value = b"fake-snapshot-bytes"
+        fake_fh = MagicMock()
+        fake_file.open.return_value.__enter__.return_value = fake_fh
         fake_file.name = "snap.snapshot"
         fake_path_cls.return_value = fake_file
 
@@ -83,7 +84,8 @@ async def test_restore_snapshot_raises_on_non_200():
         fake_client.post.return_value = fake_response
         fake_client_cls.return_value.__aenter__.return_value = fake_client
         fake_file = MagicMock()
-        fake_file.read_bytes.return_value = b"x"
+        fake_fh = MagicMock()
+        fake_file.open.return_value.__enter__.return_value = fake_fh
         fake_file.name = "snap.snapshot"
         fake_path_cls.return_value = fake_file
 

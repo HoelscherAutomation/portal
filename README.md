@@ -37,7 +37,7 @@ All configurable via `.env`.
 - `frontend/` — SvelteKit + Tailwind v4
 - `docker-compose.yml` — postgres + redis + backend + frontend
 
-## What works (P0a + P0b + P0c + P0d.2b + P1.1 + P1.2 + P1.3 + P1.4 + P1.3b)
+## What works (P0a + P0b + P0c + P0d.2b + P1.1 + P1.2 + P1.3 + P1.4 + P1.3b + P1.5)
 
 ### Foundation (P0a)
 - `docker compose up` brings up all services
@@ -129,6 +129,15 @@ All configurable via `.env`.
 - Pinned `fastembed==0.6.1` (the originally-spec'd 0.5.1 conflicts with the project's `pillow==11.0.0`)
 - Voyage embeddings opt-in still deferred — heavy re-index UX, will build when there's actual customer demand
 
+### Backup & restore (P1.5)
+- `bash scripts/backup.sh [--output DIR]` — produces a timestamped tar.gz containing `.env`, `postgres.dump` (custom-format pg_dump), Qdrant collection snapshot, uploads volume mirror, and `MANIFEST.json` with sha256 checksums + portal version + warnings
+- `bash scripts/restore.sh <backup.tar.gz> [--yes]` — wipes current state and restores from backup. Two confirmation gates by default (apply backup .env? + type `WIPE` to proceed); `--yes` skips both for automation
+- Manifest validation refuses backups tagged with portal version newer than current; refuses any backup with a tampered file (sha256 mismatch detected before any destructive action)
+- The backup file IS A CREDENTIAL — contains SECRET_KEY (which decrypts module_configs secrets), Anthropic API key, Postgres password, OC token. Store encrypted at rest; transmit over secure channels
+- Restore preserves the host's existing `.env` by default; opt in to apply the backup's `.env` (saves the current one as `.env.pre-restore.<ts>`). `--yes` mode never overwrites `.env`
+- During restore: `worker` + `frontend` are stopped (write-side); `backend` stays up to host the Python helpers; postgres + qdrant stay up for the data restore
+- Watched folder for auto-indexing dropped files: deferred to P2 (per scope decision; manual upload via UI/API still works)
+
 ## What's next
 
-P1.5 adds watched folder + backup/restore (operational completeness for a real customer install).
+P1 is complete. Open backlog items: PDF page rendering for source preview, Voyage embeddings opt-in, watched folder, automated backup scheduling, multi-tenant story for shared installs.

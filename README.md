@@ -37,7 +37,7 @@ All configurable via `.env`.
 - `frontend/` — SvelteKit + Tailwind v4
 - `docker-compose.yml` — postgres + redis + backend + frontend
 
-## What works (P0a + P0b + P0c + P0d.2b + P1.1 + P1.2 + P1.3)
+## What works (P0a + P0b + P0c + P0d.2b + P1.1 + P1.2 + P1.3 + P1.4)
 
 ### Foundation (P0a)
 - `docker compose up` brings up all services
@@ -108,8 +108,19 @@ All configurable via `.env`.
 - Voyage embeddings opt-in + nomic-rerank toggle deferred to P1.3b
 - Hoelscher proxy backend deferred — UI shows "Coming soon" placeholder
 
+### Ask Docs admin dashboard (P1.4)
+- New admin page `/admin/modules/ask-docs` — superuser-only, polls every 30s
+- Stats: documents (total + indexed/indexing/pending/failed breakdown), queries (30d count + avg/p95 latency), tokens (30d), estimated cost (30d) with "prices as of" tooltip
+- Inline SVG bar chart shows daily token usage over the last 30 days (no chart-lib dep)
+- Mode breakdown card (queries + tokens per LLM mode), Document status card
+- Query log table (last 100): timestamp, user email, query, citation count, tokens, latency, mode
+- Click any query row → side panel with full question, full answer, and the cited source chunks (filename + page + content) — sources persisted on the query row at chat time, no Qdrant lookup at click time
+- New backend endpoints under `/api/admin/modules/ask-docs/`: `GET /dashboard`, `GET /queries?limit&offset`, `GET /queries/{id}` — all superuser-only
+- New `pricing.py` module with hardcoded prices keyed by (mode, model) + `LAST_UPDATED` constant; `estimate_cost_usd()` falls back to mode-wildcard then 0
+- Schema: `ask_docs_queries.sources_used` JSONB column added (default `[]`); chat orchestrator now persists the same source payload it streams in the SSE 'sources' event
+- "Dashboard →" link added to the ask-docs card in `/admin/modules` alongside the existing "Configure →"
+
 ## What's next
 
 P1.3b adds Voyage embeddings opt-in (with re-index workflow) + nomic-rerank toggle.
-P1.4 adds the module admin dashboard (doc count, query log, monthly token usage).
 P1.5 adds watched folder + backup/restore.

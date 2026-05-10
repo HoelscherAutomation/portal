@@ -118,6 +118,31 @@ async def test_probe_with_failing_client_returns_error(client: AsyncClient, monk
     assert "invalid api key" in result["error"]
 
 
+async def test_probe_error_scrubs_api_key_pattern(client: AsyncClient, monkeypatch):
+    """If a client raises an exception that includes the API key, the response must redact it."""
+
+    class LeakyAnth:
+        def __init__(self, *, api_key, model, client=None):
+            self._api_key = api_key
+        async def stream_chat(self, *, system, user, max_tokens, on_final_usage=None):
+            # Simulate an httpx-style error message that embeds the key in a URL
+            raise RuntimeError(f"HTTP 401 from https://api.anthropic.com/v1?key={self._api_key}")
+            yield  # unreachable
+
+    monkeypatch.setattr("app.routes.admin_module_config.AnthropicChatClient", LeakyAnth)
+    await _login(client)
+    body = {
+        "mode": "anthropic",
+        "settings": {"api_key": "sk-ant-api03-LEAKED-KEY-VALUE-1234", "model": "claude-sonnet-4-6", "max_tokens": 1024},
+    }
+    r = await client.post("/api/admin/modules/ask-docs/config/probe", json=body)
+    assert r.status_code == 200
+    result = r.json()
+    assert result["ok"] is False
+    assert "[REDACTED]" in result["error"]
+    assert "sk-ant-api03-LEAKED-KEY-VALUE-1234" not in result["error"]
+
+
 async def test_probe_with_set_marker_uses_saved_secret(client: AsyncClient, monkeypatch):
     """If probe payload's api_key is `{"_set": true}`, server should fill from saved config."""
 

@@ -104,6 +104,15 @@ async def _reset_tenant():
         await session.commit()
 
 
+@pytest.fixture(autouse=True)
+async def _reset_modules():
+    """Reset module_requests + module_enablements between tests."""
+    async with db_module.async_session_maker() as session:
+        await session.execute(text("TRUNCATE module_requests RESTART IDENTITY CASCADE"))
+        await session.execute(text("TRUNCATE module_enablements CASCADE"))
+        await session.commit()
+
+
 @pytest.fixture
 async def client():
     transport = ASGITransport(app=app)

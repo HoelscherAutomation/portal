@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.backend import current_active_user
 from app.database import get_async_session
 from app.models import ModuleEnablement, ModuleRequest, User
-from app.modules.registry import REGISTRY
+from app.modules.registry import REGISTRY, get_module
 from app.schemas.module import ModuleRead
 
 router = APIRouter()
@@ -38,3 +38,33 @@ async def list_modules(
         )
         for m in REGISTRY
     ]
+
+
+@router.post("/{module_key}/request", status_code=status.HTTP_201_CREATED)
+async def request_module(
+    module_key: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> dict[str, str]:
+    if get_module(module_key) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown module: {module_key}",
+        )
+
+    existing_pending = await session.execute(
+        select(ModuleRequest).where(
+            ModuleRequest.module_key == module_key,
+            ModuleRequest.fulfilled.is_(False),
+        )
+    )
+    if existing_pending.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A pending request for this module already exists",
+        )
+
+    request = ModuleRequest(module_key=module_key, requested_by=user.id)
+    session.add(request)
+    await session.commit()
+    return {"status": "requested"}

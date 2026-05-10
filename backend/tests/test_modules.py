@@ -60,3 +60,40 @@ async def test_modules_default_state_all_disabled(client: AsyncClient):
     for module in body:
         assert module["enabled"] is False
         assert module["has_pending_request"] is False
+
+
+async def test_request_module_unauthenticated_returns_401(client: AsyncClient):
+    response = await client.post("/api/modules/announcements/request")
+    assert response.status_code == 401
+
+
+async def test_request_module_creates_pending(client: AsyncClient):
+    await _create_user("user@example.com", "test-password-123")
+    await _login(client, "user@example.com", "test-password-123")
+
+    response = await client.post("/api/modules/announcements/request")
+    assert response.status_code == 201
+
+    listing = await client.get("/api/modules")
+    body = listing.json()
+    announcements = next(m for m in body if m["key"] == "announcements")
+    assert announcements["has_pending_request"] is True
+
+
+async def test_request_module_duplicate_returns_409(client: AsyncClient):
+    await _create_user("user@example.com", "test-password-123")
+    await _login(client, "user@example.com", "test-password-123")
+
+    first = await client.post("/api/modules/announcements/request")
+    assert first.status_code == 201
+
+    second = await client.post("/api/modules/announcements/request")
+    assert second.status_code == 409
+
+
+async def test_request_module_unknown_key_returns_404(client: AsyncClient):
+    await _create_user("user@example.com", "test-password-123")
+    await _login(client, "user@example.com", "test-password-123")
+
+    response = await client.post("/api/modules/no-such-module/request")
+    assert response.status_code == 404

@@ -113,6 +113,13 @@ async def _reset_modules():
         await session.commit()
 
 
+@pytest.fixture(autouse=True)
+async def _truncate_ask_docs():
+    async with db_module.async_session_maker() as session:
+        await session.execute(text("TRUNCATE ask_docs_documents CASCADE"))
+        await session.commit()
+
+
 @pytest.fixture
 async def client():
     transport = ASGITransport(app=app)

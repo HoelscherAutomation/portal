@@ -11,6 +11,7 @@ from app.auth.backend import auth_backend, fastapi_users
 from app.auth.schemas import UserRead, UserUpdate
 from app.config import get_settings
 from app.database import async_session_maker, engine
+from app.modules.ask_docs.routes import router as ask_docs_router
 from app.routes import health, me, modules, tenant
 from app.services.uploads import _ensure_uploads_dir
 
@@ -109,4 +110,9 @@ app.include_router(
     fastapi_users.get_users_router(UserRead, UserUpdate),
     prefix="/api/users",
     tags=["users"],
+)
+app.include_router(
+    ask_docs_router,
+    prefix="/api/modules/ask-docs",
+    tags=["ask-docs"],
 )

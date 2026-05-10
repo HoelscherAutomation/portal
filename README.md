@@ -37,7 +37,7 @@ All configurable via `.env`.
 - `frontend/` — SvelteKit + Tailwind v4
 - `docker-compose.yml` — postgres + redis + backend + frontend
 
-## What works (P0a + P0b + P0c)
+## What works (P0a + P0b + P0c + P0d.2b)
 
 ### Foundation (P0a)
 - `docker compose up` brings up all services
@@ -62,8 +62,15 @@ All configurable via `.env`.
 - Customer admin can click "Request" → "Requested" badge appears
 - Requests accumulate in `module_requests` table for Operator Console (P0d) to fulfill
 
+### Phone-home client (P0d.2b)
+- Background asyncio loop runs every `PHONE_HOME_INTERVAL_SECONDS` (default 300)
+- Builds heartbeat payload (version + enabled modules + pending requests + uptime) from local DB
+- POSTs to `OC_URL/api/phone-home` with `Bearer OC_TOKEN`
+- Applies returned actions: `enable_module`, `disable_module`, `mark_request_fulfilled`
+- Acks each action back to OC with ok/error
+- Opt-in: if `OC_URL` is unset, the loop never starts (portal runs standalone)
+
 ## What's next
 
-Subsequent plans add the Operator Console (P0d, separate Hoelscher-staff app
-that fulfills module requests + manages instances), production deployment
-(P0e), and the Ask Docs RAG module (P1) — the first live module.
+P0d.3 deploys the OC to Outpost (Caddy + Cloudflare DNS + TLS at `oc.hoelscherautomation.com`).
+P1 adds the Ask Docs RAG module — the first live module that actually does real work.

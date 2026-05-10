@@ -79,26 +79,27 @@ class ChatOrchestrator:
         cited = parse_citation_numbers(full_answer, max_valid=max_valid)
         guarded = apply_hallucination_guard(full_answer, cited)
 
-        if guarded != full_answer:
-            cited = []
-
         duration_ms = int((time.monotonic() - started) * 1000)
         tokens_used = None
         if usage_holder:
             tokens_used = usage_holder.get("input_tokens", 0) + usage_holder.get("output_tokens", 0)
 
-        async with db_module.async_session_maker() as session:
-            entry = AskDocsQuery(
-                user_id=user_id,
-                query_text=query,
-                answer_text=guarded,
-                citation_count=len(cited),
-                llm_mode=self._llm_mode,
-                tokens_used=tokens_used,
-                duration_ms=duration_ms,
-            )
-            session.add(entry)
-            await session.commit()
+        try:
+            async with db_module.async_session_maker() as session:
+                entry = AskDocsQuery(
+                    user_id=user_id,
+                    query_text=query,
+                    answer_text=guarded,
+                    citation_count=len(cited),
+                    llm_mode=self._llm_mode,
+                    tokens_used=tokens_used,
+                    duration_ms=duration_ms,
+                )
+                session.add(entry)
+                await session.commit()
+        except Exception:
+            logger.exception("Failed to persist AskDocsQuery — answer was returned but not logged")
+            raise
 
         yield {
             "type": "final",

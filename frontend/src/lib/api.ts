@@ -1,6 +1,6 @@
 import { env } from '$env/dynamic/public';
 
-const API_BASE = env.PUBLIC_API_URL ?? 'http://localhost:8000';
+export const API_BASE = env.PUBLIC_API_URL ?? 'http://localhost:8000';
 
 export type ApiError = { status: number; detail: string };
 
@@ -11,7 +11,7 @@ async function request<T>(
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...init.headers
     },
     ...init
@@ -38,11 +38,19 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   postForm: <T>(path: string, formData: URLSearchParams) =>
     request<T>(path, {
       method: 'POST',
       body: formData,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    }),
+  postFile: <T>(path: string, formData: FormData) =>
+    request<T>(path, {
+      method: 'POST',
+      body: formData,
+      headers: {} // let browser set multipart boundary
     })
 };
 
@@ -52,4 +60,12 @@ export type User = {
   is_active: boolean;
   is_superuser: boolean;
   is_verified: boolean;
+};
+
+export type TenantConfig = {
+  company_name: string;
+  primary_color: string;
+  logo_filename: string | null;
+  welcome_message: string | null;
+  updated_at: string;
 };

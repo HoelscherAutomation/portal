@@ -5,7 +5,7 @@
     loadQueries,
     loadQueryDetail,
   } from '$lib/stores/admin_ask_docs_dashboard';
-  import type { DashboardPayload, QueryListItem, QueryDetail } from '$lib/api';
+  import { errorMessage, type DashboardPayload, type QueryListItem, type QueryDetail } from '$lib/api';
   import TokenChart from '$lib/components/TokenChart.svelte';
 
   let dashboard = $state<DashboardPayload | null>(null);
@@ -18,14 +18,6 @@
   let pollHandle: ReturnType<typeof setInterval> | null = null;
   const POLL_MS = 30_000;
   const PRICING_LAST_UPDATED = '2026-05-10';  // mirror backend pricing.LAST_UPDATED
-
-  function errorMessage(err: unknown): string {
-    if (err && typeof err === 'object') {
-      const e = err as { detail?: string; message?: string };
-      return e.detail ?? e.message ?? JSON.stringify(err);
-    }
-    return String(err);
-  }
 
   async function refreshAll() {
     try {

@@ -6,26 +6,7 @@ import pytest
 from httpx import AsyncClient
 
 import app.database as db_module
-from app.auth.manager import UserManager, get_user_db
-from app.auth.schemas import UserCreate
-from app.database import get_async_session
-
-
-async def _create_user(email: str, password: str, *, superuser: bool = False) -> None:
-    async for session in get_async_session():
-        async for user_db in get_user_db(session):
-            manager = UserManager(user_db)
-            await manager.create(
-                UserCreate(
-                    email=email,
-                    password=password,
-                    is_active=True,
-                    is_superuser=superuser,
-                ),
-                safe=False,
-            )
-            break
-        break
+from tests.test_auth import _create_user
 
 
 async def _login(client: AsyncClient, email: str = "admin@example.com") -> None:

@@ -47,6 +47,20 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
+/** Extract a human-readable message from an unknown error.
+ *
+ * The portal's API client throws structured `{status, detail}` objects, not
+ * Error instances — so a naive `String(err)` produces "[object Object]" in
+ * the UI. This helper handles both shapes and any plain Error.
+ */
+export function errorMessage(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const e = err as { detail?: string; message?: string };
+    return e.detail ?? e.message ?? JSON.stringify(err);
+  }
+  return String(err);
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>

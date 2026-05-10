@@ -5,7 +5,7 @@
     saveAskDocsConfig,
     probeAskDocsConfig,
   } from '$lib/stores/admin_module_config';
-  import type { AskDocsConfig, ProbeResult } from '$lib/api';
+  import { errorMessage, type AskDocsConfig, type ProbeResult } from '$lib/api';
 
   type PreviewState = { filename: string; page_num: number; content: string } | null;
 
@@ -19,15 +19,6 @@
 
   let anthropicKeyInput = $state<string>('');
   let anthropicKeyDirty = $state<boolean>(false);
-
-  /** Extract a human-readable message from API errors (which throw {status, detail} objects) or generic errors. */
-  function errorMessage(err: unknown): string {
-    if (err && typeof err === 'object') {
-      const e = err as { detail?: string; message?: string };
-      return e.detail ?? e.message ?? JSON.stringify(err);
-    }
-    return String(err);
-  }
 
   /** Resolve the api_key field for save/probe payloads.
    * - dirty + value typed → send the plaintext

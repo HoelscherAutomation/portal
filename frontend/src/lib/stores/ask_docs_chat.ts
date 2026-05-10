@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 
-import { API_BASE, api, type ChatEvent, type ChunkPreview } from '../api';
+import { API_BASE, api, errorMessage, type ChatEvent, type ChunkPreview } from '../api';
 
 export type ChatTurn = {
   id: string;
@@ -72,7 +72,7 @@ export async function askQuestion(query: string): Promise<void> {
       turns.map((t) => (t.id === turnId && t.status === 'streaming' ? { ...t, status: 'done' } : t))
     );
   } catch (err) {
-    _updateTurn(turnId, { status: 'error', errorMessage: String(err) });
+    _updateTurn(turnId, { status: 'error', errorMessage: errorMessage(err) });
   } finally {
     chatBusy.set(false);
   }

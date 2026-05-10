@@ -161,3 +161,40 @@ export type ProbeResult = {
   latency_ms?: number;
   error?: string;
 };
+
+export type DashboardDocuments = {
+  total: number;
+  by_status: { pending: number; indexing: number; indexed: number; failed: number };
+  total_chunks: number;
+};
+
+export type DashboardQueries30d = {
+  count: number;
+  tokens: number;
+  cost_usd_estimated: number;
+  by_mode: Array<{ mode: string; count: number; tokens: number }>;
+  tokens_per_day: Array<{ date: string; tokens: number }>;
+  avg_latency_ms: number | null;
+  p95_latency_ms: number | null;
+};
+
+export type DashboardPayload = {
+  documents: DashboardDocuments;
+  queries_30d: DashboardQueries30d;
+  update_banner: null | { message: string; severity?: string };
+};
+
+export type QueryListItem = {
+  id: number;
+  user_email: string | null;
+  query_text: string;
+  answer_text: string;
+  citation_count: number;
+  llm_mode: string;
+  tokens_used: number | null;
+  duration_ms: number;
+  sources_used: Array<{ number: number; filename: string; page_num: number; content: string }>;
+  created_at: string;
+};
+
+export type QueryDetail = QueryListItem;

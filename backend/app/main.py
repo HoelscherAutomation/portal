@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.database import async_session_maker, engine
 from app.modules.ask_docs.routes import router as ask_docs_router
 from app.routes import health, me, modules, tenant
+from app.routes.admin_module_config import router as admin_module_config_router
 from app.services.uploads import _ensure_uploads_dir
 
 logging.basicConfig(level=logging.INFO)
@@ -116,3 +117,4 @@ app.include_router(
     prefix="/api/modules/ask-docs",
     tags=["ask-docs"],
 )
+app.include_router(admin_module_config_router)

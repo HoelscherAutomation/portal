@@ -13,9 +13,9 @@
       <h2 class="text-lg font-medium mb-1">Users</h2>
       <p class="text-sm text-[color:var(--color-text-subtle)]">P0c</p>
     </div>
-    <div class="bg-[color:var(--color-surface)] border border-[color:var(--color-border)] rounded-lg p-5">
+    <a href="/admin/branding" class="bg-[color:var(--color-surface)] border border-[color:var(--color-border)] rounded-lg p-5 hover:border-[color:var(--color-accent)] transition-colors">
       <h2 class="text-lg font-medium mb-1">Branding</h2>
-      <p class="text-sm text-[color:var(--color-text-subtle)]">P0b</p>
-    </div>
+      <p class="text-sm text-[color:var(--color-text-subtle)]">Logo, color, name</p>
+    </a>
   </div>
 </div>

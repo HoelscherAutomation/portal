@@ -41,6 +41,7 @@ from app.modules._config_service import (
     redact_for_response,
     save_config,
 )
+from app.modules.ask_docs.dashboard_service import compute_dashboard
 from app.modules.ask_docs.llm import AnthropicChatClient
 from app.modules.ask_docs.ollama_chat import OllamaChatClient
 
@@ -174,3 +175,11 @@ def _build_transient_client(mode: str, settings: dict):
     if mode == "hoelscher_proxy":
         raise ValueError("Hoelscher proxy mode is not yet available")
     raise ValueError(f"Unknown mode: {mode}")
+
+
+@router.get("/ask-docs/dashboard")
+async def get_dashboard(
+    _user: User = Depends(current_superuser),
+):
+    """Aggregated metrics for the Ask Docs admin dashboard. Polled every 30s by the UI."""
+    return await compute_dashboard()

@@ -134,3 +134,30 @@ export type ChunkPreview = {
   content: string;
   source_path: string;
 };
+
+export type SecretMarker = { _set: boolean };
+
+export type AnthropicSettings = {
+  api_key: SecretMarker | string | null;
+  model: string;
+  max_tokens: number;
+};
+
+export type OllamaSettings = {
+  url: string;
+  model: string;
+  max_tokens: number;
+};
+
+export type AskDocsConfig = {
+  llm_mode: 'anthropic' | 'ollama' | 'hoelscher_proxy';
+  anthropic: AnthropicSettings;
+  ollama: OllamaSettings;
+  hoelscher_proxy: Record<string, never>;
+};
+
+export type ProbeResult = {
+  ok: boolean;
+  latency_ms?: number;
+  error?: string;
+};

@@ -216,8 +216,10 @@ def _make_vectorstore():
 async def _make_orchestrator():
     """Build the chat orchestrator using the customer's saved LLM config."""
     s = get_settings()
-    llm, mode = await make_llm_client()
+    # Single DB load — pass the config to make_llm_client so we don't
+    # double-fetch from module_configs on every chat request.
     config = await load_config("ask-docs")
+    llm, mode = await make_llm_client(config=config)
     reranker_enabled = config.get("reranker", {}).get("enabled", False)
     # Use the module-level singleton — model loads ONCE per process on first
     # actual rerank call, not once per chat request.

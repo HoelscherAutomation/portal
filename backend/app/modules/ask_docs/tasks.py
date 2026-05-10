@@ -10,6 +10,7 @@ from app.modules.ask_docs.embeddings import EmbeddingsClient
 from app.modules.ask_docs.models import AskDocsDocument, AskDocsStatus
 from app.modules.ask_docs.parsers import ParserError, parse_to_pages
 from app.modules.ask_docs.vectorstore import VectorStore
+from app.secret_scrub import scrub_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -79,10 +80,14 @@ async def index_document(ctx: dict, document_id: str) -> None:
             await vectorstore.aclose()
 
     except ParserError as exc:
-        error_msg = f"Parse error: {exc}"
+        # Parser errors don't include credentials; raw scrub still cheap.
+        error_msg = scrub_secrets(f"Parse error: {exc}")
         logger.warning("Parse failed for doc %s: %s", document_id, exc)
     except Exception as exc:
-        error_msg = f"{type(exc).__name__}: {exc}"
+        # httpx / Ollama / Qdrant transport errors can embed full URLs
+        # (and any auth params therein). Scrub before persisting to
+        # error_message — admin dashboard surfaces this verbatim.
+        error_msg = scrub_secrets(f"{type(exc).__name__}: {exc}")
         logger.exception("Indexing failed for doc %s", document_id)
 
     async with db_module.async_session_maker() as session:

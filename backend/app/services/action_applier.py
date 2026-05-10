@@ -9,14 +9,25 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ModuleEnablement, ModuleRequest
+from app.modules.registry import REGISTRY
 
 logger = logging.getLogger(__name__)
 
 _MAX_DETAIL_CHARS = 500
+_KNOWN_MODULE_KEYS = {entry.key for entry in REGISTRY}
 
 
 def _cap(s: str) -> str:
     return s if len(s) <= _MAX_DETAIL_CHARS else s[: _MAX_DETAIL_CHARS - 3] + "..."
+
+
+def _validate_module_key(key: str) -> None:
+    """Refuse to apply OC actions for module_keys we don't know.
+    Defends against a compromised OC server inserting arbitrary strings
+    into module_enablements (not SQLi — ORM parameterizes — but corrupts
+    the enablement state for unknown modules)."""
+    if key not in _KNOWN_MODULE_KEYS:
+        raise ValueError(f"Unknown module_key: {key!r}")
 
 
 async def apply_action(session: AsyncSession, action: dict) -> dict:
@@ -48,6 +59,7 @@ async def apply_action(session: AsyncSession, action: dict) -> dict:
 
 async def _enable_module(session: AsyncSession, payload: dict) -> None:
     module_key = payload["module_key"]
+    _validate_module_key(module_key)
     existing = (
         await session.execute(select(ModuleEnablement).where(ModuleEnablement.module_key == module_key))
     ).scalar_one_or_none()
@@ -59,6 +71,7 @@ async def _enable_module(session: AsyncSession, payload: dict) -> None:
 
 async def _disable_module(session: AsyncSession, payload: dict) -> None:
     module_key = payload["module_key"]
+    _validate_module_key(module_key)
     existing = (
         await session.execute(select(ModuleEnablement).where(ModuleEnablement.module_key == module_key))
     ).scalar_one_or_none()

@@ -12,12 +12,17 @@ from app.modules.ask_docs.ollama_chat import OllamaChatClient
 logger = logging.getLogger(__name__)
 
 
-async def make_llm_client() -> tuple[ChatClient, str]:
+async def make_llm_client(config: dict | None = None) -> tuple[ChatClient, str]:
     """Load saved ask-docs config and dispatch to the right backend.
 
     Returns (client, mode_used) so the orchestrator can persist mode_used to the query log.
+
+    `config` may be passed in by callers that already loaded it (e.g. the
+    orchestrator factory also reads `reranker.enabled`). If omitted, we load
+    here. This avoids a double DB roundtrip per chat request.
     """
-    config = await load_config("ask-docs")
+    if config is None:
+        config = await load_config("ask-docs")
     mode = config.get("llm_mode", "anthropic")
 
     if mode == "anthropic":

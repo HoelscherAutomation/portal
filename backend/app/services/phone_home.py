@@ -159,6 +159,13 @@ async def run_one_cycle(
             summary["error_category"] = "protocol"
             return summary
 
+        if "actions" not in body:
+            # Surface protocol drift — a healthy quiet cycle should still
+            # send `actions: []`. A missing key suggests OC server bug,
+            # wrong endpoint, or proxy-rewriting redirect.
+            logger.warning(
+                "OC heartbeat response missing 'actions' key — treating as empty (protocol drift?)"
+            )
         actions = body.get("actions", [])
         summary["actions_received"] = len(actions)
 

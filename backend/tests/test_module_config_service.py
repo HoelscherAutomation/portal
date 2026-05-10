@@ -78,6 +78,20 @@ async def test_redact_marks_unset_secret_as_not_set():
     assert redacted["anthropic"]["api_key"] == {"_set": False}
 
 
+async def test_save_returns_plaintext_not_encrypted_marker():
+    """save_config docstring claims the return is plaintext. Without a deepcopy
+    of `validated` before encryption, `_set_path` mutated the same nested dict
+    that's returned — leaking the encrypted marker back to callers."""
+    payload = {
+        "llm_mode": "anthropic",
+        "anthropic": {"api_key": "sk-test-deepcopy", "model": "claude-sonnet-4-6", "max_tokens": 1024},
+        "ollama": {"url": "", "model": "", "max_tokens": 1024},
+        "hoelscher_proxy": {},
+    }
+    result = await save_config("ask-docs", payload, updated_by=None)
+    assert result["anthropic"]["api_key"] == "sk-test-deepcopy"  # NOT {"_encrypted": True, ...}
+
+
 async def test_load_merges_defaults_for_missing_fields():
     """Rows persisted before a new schema field was added must still surface
     that field (with default value) on read — otherwise the frontend crashes

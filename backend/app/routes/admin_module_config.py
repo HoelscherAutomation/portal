@@ -1,38 +1,14 @@
 """Admin per-module config CRUD + probe."""
 import asyncio
 import logging
-import re
 import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-# Match common secret patterns that LLM client errors might embed in their messages.
-# Defense-in-depth: SDKs generally don't leak credentials in exceptions, but if a
-# transport-layer error includes a URL or auth header containing the key, we strip it
-# before surfacing to the customer admin.
-#
-# WHEN ADDING A NEW PROVIDER: append its key prefix here. Currently covered:
-#   - Anthropic / OpenAI:  sk-...
-#   - Voyage AI:           pa-...
-#   - Generic Bearer:      Bearer ...
-#   - HTTP basic auth:     Basic <base64>
-_SECRET_PATTERNS = [
-    re.compile(r"sk-[A-Za-z0-9_\-]{10,}"),
-    re.compile(r"pa-[A-Za-z0-9_\-]{10,}"),
-    re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]+"),
-    re.compile(r"Basic\s+[A-Za-z0-9+/=]+"),
-]
-
-
-def _scrub_secrets(text: str) -> str:
-    """Replace any obvious credential patterns with [REDACTED]."""
-    for pat in _SECRET_PATTERNS:
-        text = pat.sub("[REDACTED]", text)
-    return text
-
 from app.auth.backend import current_superuser
+from app.secret_scrub import scrub_secrets as _scrub_secrets
 from app.models import User
 from app.modules._config_schemas import SCHEMAS, SECRET_PATHS
 from app.modules._config_service import (

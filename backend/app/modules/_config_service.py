@@ -1,4 +1,5 @@
 """Per-module config CRUD with secret encryption + redaction."""
+import copy
 from typing import Any
 
 from sqlalchemy import func, select
@@ -102,8 +103,12 @@ async def save_config(module_key: str, payload: dict, *, updated_by: int | None)
         schema = SCHEMAS[module_key]
         validated = schema(**resolved).model_dump()
 
-        # Encrypt secret-path values in-place before persisting.
-        to_persist = {**validated}
+        # Encrypt secret-path values in-place before persisting. Use a deepcopy
+        # so the in-place mutation doesn't bleed encrypted markers back into
+        # `validated` (which we return to callers as the plaintext result).
+        # Without deepcopy, `to_persist = {**validated}` is shallow — nested
+        # dicts share references and _set_path would mutate `validated` too.
+        to_persist = copy.deepcopy(validated)
         for path in SECRET_PATHS.get(module_key, []):
             plain = _get_path(to_persist, path)
             if plain is None or plain == "":

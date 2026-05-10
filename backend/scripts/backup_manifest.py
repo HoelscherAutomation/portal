@@ -116,7 +116,12 @@ def validate_manifest(work_dir: Path, *, current_portal_version: str) -> None:
         raise ManifestValidationError(f"MANIFEST.json missing in {work_dir}")
     manifest = json.loads(manifest_path.read_text())
 
-    backup_v = _parse_version(manifest.get("portal_version", "0"))
+    if "portal_version" not in manifest:
+        raise ManifestValidationError(
+            "MANIFEST.json missing required key 'portal_version'. "
+            "Refusing — manifest may be tampered or from an incompatible backup tool."
+        )
+    backup_v = _parse_version(manifest["portal_version"])
     current_v = _parse_version(current_portal_version)
     if backup_v > current_v:
         raise ManifestValidationError(

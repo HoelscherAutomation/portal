@@ -92,3 +92,14 @@ export type Module = {
   enabled: boolean;
   has_pending_request: boolean;
 };
+
+export type AskDocsDocument = {
+  id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  status: 'pending' | 'indexing' | 'indexed' | 'failed';
+  chunk_count: number;
+  error_message: string | null;
+  uploaded_at: string;
+};

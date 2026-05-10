@@ -28,17 +28,18 @@ async def save_logo(content: bytes, original_name: str) -> str:
 
     suffix = Path(original_name).suffix.lower()
     if suffix == ".svg":
-        # Trust the suffix for SVG; we don't have an XML validator wired in.
+        # SVG content is validated separately in validate_svg (Commit 2 will add this).
         ext = "svg"
     else:
         try:
             img = Image.open(io.BytesIO(content))
+            fmt = img.format  # capture BEFORE verify() invalidates the object
             img.verify()
-        except (UnidentifiedImageError, Exception) as exc:
+        except (UnidentifiedImageError, Image.DecompressionBombError) as exc:
             raise InvalidImageError("Uploaded file is not a recognizable image") from exc
-        if img.format not in ALLOWED_FORMATS - {"SVG"}:
-            raise InvalidImageError(f"Unsupported image format: {img.format}")
-        ext = img.format.lower()
+        if fmt is None or fmt not in ALLOWED_FORMATS - {"SVG"}:
+            raise InvalidImageError(f"Unsupported image format: {fmt}")
+        ext = fmt.lower()
 
     filename = f"logo-{secrets.token_hex(8)}.{ext}"
     target = _ensure_uploads_dir() / filename
@@ -51,6 +52,9 @@ async def save_logo(content: bytes, original_name: str) -> str:
 
 def delete_logo(filename: str) -> None:
     """Remove a previously saved logo. Silent if file missing."""
-    target = Path(get_settings().uploads_path) / filename
-    if target.exists():
-        target.unlink()
+    uploads_root = Path(get_settings().uploads_path).resolve()
+    target = (uploads_root / filename).resolve()
+    if target.parent != uploads_root:
+        # Defensive: refuse to follow paths outside the uploads directory.
+        raise ValueError(f"Refusing to delete file outside uploads directory: {filename}")
+    target.unlink(missing_ok=True)

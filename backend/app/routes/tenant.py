@@ -15,7 +15,10 @@ async def read_tenant_config(
     _user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> TenantConfig:
-    return await session.get(TenantConfig, 1)
+    config = await session.get(TenantConfig, 1)
+    if config is None:
+        raise HTTPException(status_code=404, detail="Tenant config not initialized")
+    return config
 
 
 @router.put("/config", response_model=TenantConfigRead)
@@ -25,6 +28,8 @@ async def update_tenant_config(
     session: AsyncSession = Depends(get_async_session),
 ) -> TenantConfig:
     config = await session.get(TenantConfig, 1)
+    if config is None:
+        raise HTTPException(status_code=404, detail="Tenant config not initialized")
     for field, value in update.model_dump(exclude_unset=True).items():
         setattr(config, field, value)
     await session.commit()
@@ -45,9 +50,18 @@ async def upload_logo(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     config = await session.get(TenantConfig, 1)
-    if config.logo_filename:
-        delete_logo(config.logo_filename)
+    if config is None:
+        # Clean up the newly-saved file since we can't link it.
+        delete_logo(filename)
+        raise HTTPException(status_code=404, detail="Tenant config not initialized")
+
+    old_filename = config.logo_filename
     config.logo_filename = filename
     await session.commit()
     await session.refresh(config)
+
+    # DB commit succeeded — safe to remove the old file.
+    if old_filename:
+        delete_logo(old_filename)
+
     return config

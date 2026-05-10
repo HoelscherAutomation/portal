@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     test_database_url: str | None = None
     uploads_path: str = "/app/data/uploads"
+    reset_password_secret: str | None = None
+    verification_secret: str | None = None
 
 
 @lru_cache

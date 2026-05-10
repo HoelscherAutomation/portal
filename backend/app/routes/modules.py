@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.backend import current_active_user
+from app.auth.backend import current_active_user, current_superuser
 from app.database import get_async_session
 from app.models import ModuleEnablement, ModuleRequest, User
 from app.modules.registry import REGISTRY, get_module
@@ -43,7 +44,7 @@ async def list_modules(
 @router.post("/{module_key}/request", status_code=status.HTTP_201_CREATED)
 async def request_module(
     module_key: str,
-    user: User = Depends(current_active_user),
+    user: User = Depends(current_superuser),
     session: AsyncSession = Depends(get_async_session),
 ) -> dict[str, str]:
     if get_module(module_key) is None:
@@ -66,5 +67,12 @@ async def request_module(
 
     request = ModuleRequest(module_key=module_key, requested_by=user.id)
     session.add(request)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A pending request for this module already exists",
+        )
     return {"status": "requested"}

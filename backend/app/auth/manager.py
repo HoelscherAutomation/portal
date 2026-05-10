@@ -18,8 +18,12 @@ async def get_user_db(
 
 
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
-    reset_password_token_secret = get_settings().secret_key
-    verification_token_secret = get_settings().secret_key
+    reset_password_token_secret = (
+        get_settings().reset_password_secret or get_settings().secret_key
+    )
+    verification_token_secret = (
+        get_settings().verification_secret or get_settings().secret_key
+    )
 
     async def on_after_register(self, user: User, request: Optional[Request] = None) -> None:
         # Hook for future welcome flow; intentionally minimal in v1.

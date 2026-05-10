@@ -33,7 +33,7 @@ class ModuleRequest(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     module_key: Mapped[str] = mapped_column(String(50), nullable=False)
-    requested_by: Mapped[int] = mapped_column(
+    requested_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     requested_at: Mapped[datetime] = mapped_column(

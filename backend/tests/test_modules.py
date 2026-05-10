@@ -68,8 +68,8 @@ async def test_request_module_unauthenticated_returns_401(client: AsyncClient):
 
 
 async def test_request_module_creates_pending(client: AsyncClient):
-    await _create_user("user@example.com", "test-password-123")
-    await _login(client, "user@example.com", "test-password-123")
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
 
     response = await client.post("/api/modules/announcements/request")
     assert response.status_code == 201
@@ -81,8 +81,8 @@ async def test_request_module_creates_pending(client: AsyncClient):
 
 
 async def test_request_module_duplicate_returns_409(client: AsyncClient):
-    await _create_user("user@example.com", "test-password-123")
-    await _login(client, "user@example.com", "test-password-123")
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
 
     first = await client.post("/api/modules/announcements/request")
     assert first.status_code == 201
@@ -92,8 +92,16 @@ async def test_request_module_duplicate_returns_409(client: AsyncClient):
 
 
 async def test_request_module_unknown_key_returns_404(client: AsyncClient):
-    await _create_user("user@example.com", "test-password-123")
-    await _login(client, "user@example.com", "test-password-123")
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
 
     response = await client.post("/api/modules/no-such-module/request")
     assert response.status_code == 404
+
+
+async def test_request_module_requires_superuser(client: AsyncClient):
+    await _create_user("user@example.com", "test-password-123")  # not superuser
+    await _login(client, "user@example.com", "test-password-123")
+
+    response = await client.post("/api/modules/announcements/request")
+    assert response.status_code == 403

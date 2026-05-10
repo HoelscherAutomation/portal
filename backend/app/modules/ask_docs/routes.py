@@ -208,12 +208,7 @@ async def chat(
             async for event in orchestrator.run(query=payload.query, user_id=user.id):
                 yield f"data: {json.dumps(event)}\n\n".encode("utf-8")
         finally:
-            for client in (orchestrator._embeddings, orchestrator._vectorstore):
-                try:
-                    if client is not None:
-                        await client.aclose()
-                except Exception:
-                    logger.exception("Failed to close client")
+            await orchestrator.close_clients()
 
     return StreamingResponse(_event_stream(), media_type="text/event-stream")
 

@@ -98,11 +98,22 @@ class ChatOrchestrator:
                 session.add(entry)
                 await session.commit()
         except Exception:
+            # The answer was already streamed; persistence is non-critical to the user.
+            # Log it for the operator and still emit `final` so the SSE stream completes cleanly.
             logger.exception("Failed to persist AskDocsQuery — answer was returned but not logged")
-            raise
 
         yield {
             "type": "final",
             "answer": guarded,
             "citations": cited,
         }
+
+    async def close_clients(self) -> None:
+        """Best-effort close of underlying httpx-backed clients. Used by the route's finally block."""
+        for client in (self._embeddings, self._vectorstore):
+            if client is None:
+                continue
+            try:
+                await client.aclose()
+            except Exception:
+                logger.exception("Failed to close client")

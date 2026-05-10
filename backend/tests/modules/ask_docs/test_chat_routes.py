@@ -41,9 +41,8 @@ async def test_chat_streams_sse_events(client: AsyncClient, monkeypatch):
             yield {"type": "delta", "text": "world."}
             yield {"type": "final", "answer": "Hello world.", "citations": []}
 
-        # Fields the route's `finally` block touches
-        _embeddings = None
-        _vectorstore = None
+        async def close_clients(self):
+            return None
 
     monkeypatch.setattr(
         "app.modules.ask_docs.routes._make_orchestrator",

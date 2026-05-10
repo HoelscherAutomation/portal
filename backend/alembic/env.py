@@ -11,7 +11,11 @@ from app.database import Base
 from app.models import User  # noqa: F401  (ensure model is registered)
 
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Only override the URL if it hasn't already been set programmatically (e.g. by the test suite).
+# alembic.ini ships a placeholder value; if we see that, fall back to settings.
+_current_url = config.get_main_option("sqlalchemy.url", "")
+if not _current_url or _current_url == "driver://user:pass@localhost/dbname":
+    config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

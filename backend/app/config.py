@@ -11,8 +11,20 @@ class Settings(BaseSettings):
     secret_key: str
     cookie_secure: bool = False
     cors_origins: list[str] = ["http://localhost:5173"]
+    test_database_url: str | None = None
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def resolve_test_database_url() -> str:
+    """Test DB URL — explicit override, else derive from production URL with _test suffix."""
+    settings = get_settings()
+    if settings.test_database_url:
+        return settings.test_database_url
+    # Replace the database name in DATABASE_URL with <name>_test.
+    # postgresql+asyncpg://user:pass@host:port/dbname → .../dbname_test
+    base, _, dbname = settings.database_url.rpartition("/")
+    return f"{base}/{dbname}_test"

@@ -49,7 +49,13 @@
         <div class="flex items-center justify-between">
           <span class="text-xs text-[color:var(--color-text-subtle)]">{module.target}</span>
           {#if module.enabled}
-            <span class="text-xs text-[color:var(--color-text-subtle)]">Enabled</span>
+            {#if module.key === 'ask-docs' && module.enabled}
+              <a href="/admin/modules/ask-docs/config" class="text-xs text-[color:var(--color-accent)] hover:underline">
+                Configure →
+              </a>
+            {:else}
+              <span class="text-xs text-[color:var(--color-text-subtle)]">Enabled</span>
+            {/if}
           {:else if module.has_pending_request}
             <span class="text-xs px-3 py-1 rounded bg-[color:var(--color-surface-2)] text-[color:var(--color-text-muted)]">Requested</span>
           {:else}

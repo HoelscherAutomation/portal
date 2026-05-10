@@ -44,6 +44,9 @@ from app.modules._config_service import (
 from app.modules.ask_docs.dashboard_service import compute_dashboard
 from app.modules.ask_docs.llm import AnthropicChatClient
 from app.modules.ask_docs.ollama_chat import OllamaChatClient
+from app.modules.ask_docs.queries_service import (
+    QueryNotFound, get_query_detail, list_queries,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/modules", tags=["admin-module-config"])
@@ -183,3 +186,29 @@ async def get_dashboard(
 ):
     """Aggregated metrics for the Ask Docs admin dashboard. Polled every 30s by the UI."""
     return await compute_dashboard()
+
+
+@router.get("/ask-docs/queries")
+async def get_queries(
+    limit: int = 100,
+    offset: int = 0,
+    _user: User = Depends(current_superuser),
+):
+    """Paginated query log, newest first."""
+    if limit < 1 or limit > 200:
+        raise HTTPException(status_code=422, detail="limit must be 1-200")
+    if offset < 0:
+        raise HTTPException(status_code=422, detail="offset must be >= 0")
+    return await list_queries(limit=limit, offset=offset)
+
+
+@router.get("/ask-docs/queries/{query_id}")
+async def get_query(
+    query_id: int,
+    _user: User = Depends(current_superuser),
+):
+    """Drill-down: full query + answer + sources_used."""
+    try:
+        return await get_query_detail(query_id)
+    except QueryNotFound:
+        raise HTTPException(status_code=404, detail="Query not found")

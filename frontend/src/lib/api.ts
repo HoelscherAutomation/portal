@@ -103,3 +103,29 @@ export type AskDocsDocument = {
   error_message: string | null;
   uploaded_at: string;
 };
+
+export type ChatSourceEvent = {
+  type: 'sources';
+  sources: Array<{ number: number; filename: string; page_num: number; content: string }>;
+};
+
+export type ChatDeltaEvent = {
+  type: 'delta';
+  text: string;
+};
+
+export type ChatFinalEvent = {
+  type: 'final';
+  answer: string;
+  citations: number[];
+};
+
+export type ChatEvent = ChatSourceEvent | ChatDeltaEvent | ChatFinalEvent;
+
+export type ChunkPreview = {
+  doc_id: string;
+  page_num: number;
+  chunk_index: number;
+  content: string;
+  source_path: string;
+};

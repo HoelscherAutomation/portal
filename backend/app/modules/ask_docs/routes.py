@@ -15,10 +15,12 @@ from app.auth.backend import current_active_user
 from app.config import get_settings
 from app.database import get_async_session
 from app.models import AskDocsDocument, User
+from app.modules._config_service import load_config
 from app.modules.ask_docs.chat import ChatOrchestrator
 from app.modules.ask_docs.embeddings import EmbeddingsClient
 from app.modules.ask_docs.llm_factory import make_llm_client
 from app.modules.ask_docs.models import AskDocsStatus
+from app.modules.ask_docs.reranker import Reranker
 from app.modules.ask_docs.schemas import ChatRequest, DocumentRead
 from app.modules.ask_docs.vectorstore import VectorStore
 
@@ -178,6 +180,11 @@ async def _make_orchestrator():
     """Build the chat orchestrator using the customer's saved LLM config."""
     s = get_settings()
     llm, mode = await make_llm_client()
+    config = await load_config("ask-docs")
+    reranker_enabled = config.get("reranker", {}).get("enabled", False)
+    # Lazy: constructing Reranker doesn't load the model. The first chat with
+    # reranker_enabled triggers the actual model download/load (~5-10s).
+    reranker = Reranker() if reranker_enabled else None
     return ChatOrchestrator(
         embeddings=_make_embeddings_client(),
         vectorstore=_make_vectorstore(),
@@ -185,6 +192,8 @@ async def _make_orchestrator():
         llm_mode=mode,
         top_k=s.ask_docs_top_k,
         max_answer_tokens=s.ask_docs_max_answer_tokens,
+        reranker=reranker,
+        reranker_enabled=reranker_enabled,
     )
 
 

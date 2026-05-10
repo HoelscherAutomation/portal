@@ -37,7 +37,7 @@ All configurable via `.env`.
 - `frontend/` — SvelteKit + Tailwind v4
 - `docker-compose.yml` — postgres + redis + backend + frontend
 
-## What works (P0a + P0b + P0c + P0d.2b + P1.1 + P1.2)
+## What works (P0a + P0b + P0c + P0d.2b + P1.1 + P1.2 + P1.3)
 
 ### Foundation (P0a)
 - `docker compose up` brings up all services
@@ -92,8 +92,24 @@ All configurable via `.env`.
 - Frontend `/modules/ask-docs` is now the actual chat: input box + answer area with clickable `[N]` pills + side pane source preview (text-based: filename + page + chunk content)
 - Source preview is text-only in v1; PDF page rendering is a P1.x candidate
 
+### Ask Docs LLM mode config (P1.3 MVP)
+- New admin page `/admin/modules/ask-docs/config` — superuser-only, linked from the `/admin/modules` catalog when ask-docs is enabled
+- Switch chat backend between Anthropic and BYO Ollama via radio (Hoelscher proxy stubbed as "Coming soon")
+- API keys encrypted at rest in new `module_configs` table via Fernet (key derived from `SECRET_KEY` via HKDF, domain-separated by HKDF salt/info)
+- Per-mode "Test" probe button runs a 1-token round-trip with 10s timeout — verifies config before saving; never persists the test value
+- Probe handles `{_set: true}` markers so customers can re-test the saved key without re-entering it
+- Generic `module_configs` table reusable across future modules; per-module Pydantic schemas + `SECRET_PATHS` registry validate writes
+- `GET / PUT / POST probe` under `/api/admin/modules/{module_key}/config` — superuser only; secrets always redacted in API responses
+- New `make_llm_client()` dispatcher (`app/modules/ask_docs/llm_factory.py`) is now the only switch point; chat orchestrator stays mode-agnostic
+- New `OllamaChatClient` matches the `ChatClient` Protocol; same `stream_chat()` interface as `AnthropicChatClient`
+- `ask_docs_queries.llm_mode` now reflects the actual mode used per-query (was hardcoded "anthropic" in P1.2)
+- Backwards compat: `ANTHROPIC_API_KEY` env var still works as fallback when no DB config exists — current dev setup unchanged
+- Probe error responses scrub common API key patterns (`sk-...`, `Bearer ...`) before surfacing to the browser
+- Voyage embeddings opt-in + nomic-rerank toggle deferred to P1.3b
+- Hoelscher proxy backend deferred — UI shows "Coming soon" placeholder
+
 ## What's next
 
-P1.3 adds LLM mode config UI (Anthropic / Ollama / Hoelscher proxy) + Voyage upgrade option + reranker.
-P1.4 adds the module admin dashboard (doc count, query log, usage stats).
+P1.3b adds Voyage embeddings opt-in (with re-index workflow) + nomic-rerank toggle.
+P1.4 adds the module admin dashboard (doc count, query log, monthly token usage).
 P1.5 adds watched folder + backup/restore.

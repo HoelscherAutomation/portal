@@ -126,3 +126,36 @@ async def test_logo_upload_rejects_non_image(client: AsyncClient):
     files = {"file": ("not-an-image.png", io.BytesIO(b"plain text not png"), "image/png")}
     response = await client.post("/api/tenant/logo", files=files)
     assert response.status_code == 400
+
+
+_SAFE_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4" fill="blue"/></svg>'
+_MALICIOUS_SVG_SCRIPT = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+_MALICIOUS_SVG_ONLOAD = b'<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"></svg>'
+
+
+async def test_logo_upload_accepts_safe_svg(client: AsyncClient):
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
+
+    files = {"file": ("logo.svg", io.BytesIO(_SAFE_SVG), "image/svg+xml")}
+    response = await client.post("/api/tenant/logo", files=files)
+    assert response.status_code == 200
+    assert response.json()["logo_filename"].endswith(".svg")
+
+
+async def test_logo_upload_rejects_svg_with_script(client: AsyncClient):
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
+
+    files = {"file": ("logo.svg", io.BytesIO(_MALICIOUS_SVG_SCRIPT), "image/svg+xml")}
+    response = await client.post("/api/tenant/logo", files=files)
+    assert response.status_code == 400
+
+
+async def test_logo_upload_rejects_svg_with_onload(client: AsyncClient):
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
+
+    files = {"file": ("logo.svg", io.BytesIO(_MALICIOUS_SVG_ONLOAD), "image/svg+xml")}
+    response = await client.post("/api/tenant/logo", files=files)
+    assert response.status_code == 400

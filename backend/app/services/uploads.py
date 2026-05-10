@@ -28,7 +28,7 @@ async def save_logo(content: bytes, original_name: str) -> str:
 
     suffix = Path(original_name).suffix.lower()
     if suffix == ".svg":
-        # SVG content is validated separately in validate_svg (Commit 2 will add this).
+        validate_svg(content)
         ext = "svg"
     else:
         try:
@@ -58,3 +58,34 @@ def delete_logo(filename: str) -> None:
         # Defensive: refuse to follow paths outside the uploads directory.
         raise ValueError(f"Refusing to delete file outside uploads directory: {filename}")
     target.unlink(missing_ok=True)
+
+
+def validate_svg(content: bytes) -> None:
+    """Validate SVG content: parseable XML, root is <svg>, no script or event handlers.
+
+    Raises InvalidImageError on rejection.
+    """
+    from defusedxml import ElementTree as ET
+
+    try:
+        tree = ET.fromstring(content)
+    except ET.ParseError as exc:
+        raise InvalidImageError("SVG is not valid XML") from exc
+
+    # Strip namespace from local tag name for comparison.
+    def local(tag: str) -> str:
+        return tag.split("}", 1)[-1].lower()
+
+    if local(tree.tag) != "svg":
+        raise InvalidImageError("File is not an SVG (root element must be <svg>)")
+
+    # Walk all elements; reject script tags and on* event handler attributes.
+    for elem in tree.iter():
+        if local(elem.tag) == "script":
+            raise InvalidImageError("SVG contains <script> elements")
+        for attr_name, attr_value in elem.attrib.items():
+            attr_lower = attr_name.lower().split("}", 1)[-1]
+            if attr_lower.startswith("on"):
+                raise InvalidImageError(f"SVG contains event handler attribute: {attr_name}")
+            if "javascript:" in attr_value.lower():
+                raise InvalidImageError(f"SVG contains javascript: URI in attribute: {attr_name}")

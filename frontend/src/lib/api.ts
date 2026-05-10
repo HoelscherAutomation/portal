@@ -69,3 +69,13 @@ export type TenantConfig = {
   welcome_message: string | null;
   updated_at: string;
 };
+
+export type Module = {
+  key: string;
+  name: string;
+  description: string;
+  status: 'live' | 'preview';
+  target: string;
+  enabled: boolean;
+  has_pending_request: boolean;
+};

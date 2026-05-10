@@ -47,3 +47,7 @@ class WorkerSettings:
     on_shutdown = shutdown
     job_timeout = 60 * 30  # 30 minutes for large doc indexing
     max_jobs = 4
+    # Refresh the Redis health key every 30s so docker healthcheck (also at 30s)
+    # always has a fresh sentinel to read. Default is 60s, which intermittently
+    # leaves the key expired between probes.
+    health_check_interval = 30

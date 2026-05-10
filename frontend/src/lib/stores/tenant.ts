@@ -1,15 +1,25 @@
 import { writable } from 'svelte/store';
 
-import { API_BASE, api, type TenantConfig } from '../api';
+import { API_BASE, api, type ApiError, type TenantConfig } from '../api';
 
 export const tenant = writable<TenantConfig | null>(null);
+export const tenantError = writable<string | null>(null);
 
 export async function loadTenant(): Promise<TenantConfig | null> {
   try {
     const config = await api.get<TenantConfig>('/api/tenant/config');
     tenant.set(config);
+    tenantError.set(null);
     return config;
-  } catch {
+  } catch (err) {
+    const apiErr = err as ApiError;
+    if (apiErr?.status === 401 || apiErr?.status === 403) {
+      // Not authenticated — fine, layout will redirect.
+      tenant.set(null);
+      tenantError.set(null);
+      return null;
+    }
+    tenantError.set(apiErr?.detail ?? 'Could not load tenant config');
     tenant.set(null);
     return null;
   }

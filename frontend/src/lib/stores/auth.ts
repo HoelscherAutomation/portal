@@ -1,15 +1,26 @@
 import { writable } from 'svelte/store';
 
-import { api, type User } from '../api';
+import { api, type ApiError, type User } from '../api';
 
 export const currentUser = writable<User | null>(null);
+export const authError = writable<string | null>(null);
 
 export async function loadCurrentUser(): Promise<User | null> {
   try {
     const user = await api.get<User>('/api/me');
     currentUser.set(user);
+    authError.set(null);
     return user;
-  } catch {
+  } catch (err) {
+    const apiErr = err as ApiError;
+    if (apiErr?.status === 401 || apiErr?.status === 403) {
+      // Genuine "not authenticated" — clear the user.
+      currentUser.set(null);
+      authError.set(null);
+      return null;
+    }
+    // Server error or network outage — surface it, don't masquerade as logged-out.
+    authError.set(apiErr?.detail ?? 'Could not reach the server');
     currentUser.set(null);
     return null;
   }
@@ -20,10 +31,9 @@ export async function login(email: string, password: string): Promise<User> {
   formData.set('username', email);
   formData.set('password', password);
   await api.postForm('/api/auth/login', formData);
-  const user = await loadCurrentUser();
-  if (!user) {
-    throw new Error('Login succeeded but /api/me returned null');
-  }
+  // Direct call (no swallowing) so login surfaces /api/me failures clearly.
+  const user = await api.get<User>('/api/me');
+  currentUser.set(user);
   return user;
 }
 

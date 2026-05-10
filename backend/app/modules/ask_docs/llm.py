@@ -42,3 +42,13 @@ class AnthropicChatClient:
                     "input_tokens": final.usage.input_tokens,
                     "output_tokens": final.usage.output_tokens,
                 })
+
+    async def aclose(self) -> None:
+        """Close the underlying anthropic httpx pool. Called from ChatOrchestrator.close_clients."""
+        close = getattr(self._client, "close", None) or getattr(self._client, "aclose", None)
+        if close is None:
+            return
+        try:
+            await close()
+        except Exception:
+            logger.exception("Failed to close AnthropicChatClient httpx pool")

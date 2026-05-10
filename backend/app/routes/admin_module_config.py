@@ -12,9 +12,17 @@ from pydantic import BaseModel
 # Defense-in-depth: SDKs generally don't leak credentials in exceptions, but if a
 # transport-layer error includes a URL or auth header containing the key, we strip it
 # before surfacing to the customer admin.
+#
+# WHEN ADDING A NEW PROVIDER: append its key prefix here. Currently covered:
+#   - Anthropic / OpenAI:  sk-...
+#   - Voyage AI:           pa-...
+#   - Generic Bearer:      Bearer ...
+#   - HTTP basic auth:     Basic <base64>
 _SECRET_PATTERNS = [
-    re.compile(r"sk-[A-Za-z0-9_\-]{10,}"),       # Anthropic, OpenAI-style API keys
-    re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]+"),    # Authorization header
+    re.compile(r"sk-[A-Za-z0-9_\-]{10,}"),
+    re.compile(r"pa-[A-Za-z0-9_\-]{10,}"),
+    re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]+"),
+    re.compile(r"Basic\s+[A-Za-z0-9+/=]+"),
 ]
 
 
@@ -109,6 +117,9 @@ async def probe_config(
         return ProbeResult(ok=True, latency_ms=latency_ms)
     except asyncio.TimeoutError:
         return ProbeResult(ok=False, error="Probe timed out after 10s")
+    except HTTPException:
+        # Don't swallow HTTPException — let FastAPI return its proper status code.
+        raise
     except Exception as exc:
         logger.exception("Probe failed for mode=%s", body.mode)
         return ProbeResult(ok=False, error=_scrub_secrets(str(exc))[:500])
@@ -142,7 +153,13 @@ async def _resolve_set_markers_for_probe(module_key: str, mode: str, settings: d
 
 
 def _build_transient_client(mode: str, settings: dict):
-    """Construct a one-shot client from raw settings — does not touch saved config."""
+    """Construct a one-shot client from raw settings — does not touch saved config.
+
+    SECURITY: Ollama mode takes an admin-supplied URL and makes an outbound HTTP request
+    from the backend. This is an intentional SSRF surface — bounded to the superuser
+    trust tier per the threat model (single-tenant homelab, admin already has DB access).
+    If we ever add untrusted-tenant config writes, restrict to http(s):// + non-RFC1918.
+    """
     if mode == "anthropic":
         if not settings.get("api_key"):
             raise ValueError("Anthropic API key is required")

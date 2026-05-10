@@ -109,9 +109,14 @@ class ChatOrchestrator:
         }
 
     async def close_clients(self) -> None:
-        """Best-effort close of underlying httpx-backed clients. Used by the route's finally block."""
-        for client in (self._embeddings, self._vectorstore):
-            if client is None:
+        """Best-effort close of underlying httpx-backed clients. Used by the route's finally block.
+
+        Includes the LLM client — both AnthropicChatClient and OllamaChatClient hold
+        httpx connection pools that leak otherwise. The hasattr guard tolerates fakes
+        in tests + any future ChatClient impl that doesn't need aclose.
+        """
+        for client in (self._embeddings, self._vectorstore, self._llm):
+            if client is None or not hasattr(client, "aclose"):
                 continue
             try:
                 await client.aclose()

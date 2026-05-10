@@ -20,12 +20,33 @@
   let anthropicKeyInput = $state<string>('');
   let anthropicKeyDirty = $state<boolean>(false);
 
+  /** Extract a human-readable message from API errors (which throw {status, detail} objects) or generic errors. */
+  function errorMessage(err: unknown): string {
+    if (err && typeof err === 'object') {
+      const e = err as { detail?: string; message?: string };
+      return e.detail ?? e.message ?? JSON.stringify(err);
+    }
+    return String(err);
+  }
+
+  /** Resolve the api_key field for save/probe payloads.
+   * - dirty + value typed → send the plaintext
+   * - dirty + cleared → send null (delete the saved key)
+   * - not dirty + saved key exists → send {_set: true} (keep what's saved)
+   * - not dirty + no saved key → send null (treat as unset, not as a "_set" sentinel)
+   */
+  function resolveAnthropicKeyField(): string | null | { _set: true } {
+    if (anthropicKeyDirty) return anthropicKeyInput || null;
+    const savedSet = (config?.anthropic.api_key as { _set: boolean } | undefined)?._set ?? false;
+    return savedSet ? { _set: true } : null;
+  }
+
   onMount(async () => {
     try {
       config = await loadAskDocsConfig();
       anthropicKeyInput = '';
     } catch (err) {
-      loadError = String(err);
+      loadError = errorMessage(err);
     }
   });
 
@@ -41,12 +62,9 @@
 
   function buildSavePayload(): AskDocsConfig {
     if (!config) throw new Error('Not loaded');
-    const anthropic_key = anthropicKeyDirty
-      ? (anthropicKeyInput || null)
-      : { _set: (config.anthropic.api_key as { _set: boolean })?._set ?? false };
     return {
       llm_mode: config.llm_mode,
-      anthropic: { ...config.anthropic, api_key: anthropic_key as never },
+      anthropic: { ...config.anthropic, api_key: resolveAnthropicKeyField() as never },
       ollama: { ...config.ollama },
       hoelscher_proxy: {},
     };
@@ -63,7 +81,7 @@
       setTimeout(() => { if (saveStatus === 'saved') saveStatus = 'idle'; }, 3000);
     } catch (err) {
       saveStatus = 'error';
-      saveError = String(err);
+      saveError = errorMessage(err);
     }
   }
 
@@ -75,10 +93,11 @@
 
     let settings: Record<string, unknown>;
     if (mode === 'anthropic') {
-      const key = anthropicKeyDirty
-        ? (anthropicKeyInput || null)
-        : { _set: (config.anthropic.api_key as { _set: boolean })?._set ?? false };
-      settings = { api_key: key, model: config.anthropic.model, max_tokens: config.anthropic.max_tokens };
+      settings = {
+        api_key: resolveAnthropicKeyField(),
+        model: config.anthropic.model,
+        max_tokens: config.anthropic.max_tokens,
+      };
     } else {
       settings = { url: config.ollama.url, model: config.ollama.model, max_tokens: config.ollama.max_tokens };
     }
@@ -86,7 +105,7 @@
     try {
       slot.result = await probeAskDocsConfig(mode, settings);
     } catch (err) {
-      slot.result = { ok: false, error: String(err) };
+      slot.result = { ok: false, error: errorMessage(err) };
     }
     slot.status = 'done';
     if (mode === 'anthropic') probeAnthropic = slot; else probeOllama = slot;

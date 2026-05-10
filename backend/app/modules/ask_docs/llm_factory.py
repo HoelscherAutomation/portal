@@ -22,9 +22,16 @@ async def make_llm_client() -> tuple[ChatClient, str]:
 
     if mode == "anthropic":
         anth = config.get("anthropic", {})
-        key = anth.get("api_key") or app_config.get_settings().anthropic_api_key
+        db_key = anth.get("api_key")
+        env_key = app_config.get_settings().anthropic_api_key
+        key = db_key or env_key
         if not key:
+            logger.warning("ask-docs anthropic mode requested but no API key in DB or env")
             raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
+        if not db_key and env_key:
+            # Surface the env-fallback once per request so an admin who "cleared" the
+            # DB key in the UI can see in logs that env-var is now driving chat.
+            logger.info("ask-docs anthropic mode using ANTHROPIC_API_KEY env-var fallback (no DB key set)")
         return (
             AnthropicChatClient(
                 api_key=key,
@@ -38,6 +45,10 @@ async def make_llm_client() -> tuple[ChatClient, str]:
         url = oll.get("url") or ""
         model = oll.get("model") or ""
         if not url or not model:
+            logger.warning(
+                "ask-docs ollama mode requested but config is incomplete (url=%r, model=%r)",
+                url, model,
+            )
             raise HTTPException(
                 status_code=503,
                 detail="Ollama mode selected but URL or model is not set",

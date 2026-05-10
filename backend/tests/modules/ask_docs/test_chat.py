@@ -71,6 +71,51 @@ async def test_orchestrator_streams_and_persists():
         assert rows[0].tokens_used == 108
 
 
+async def test_close_clients_closes_llm_too():
+    """Regression: close_clients() must close the LLM client (httpx pool leak otherwise)."""
+    closed: list[str] = []
+
+    class FakeClient:
+        def __init__(self, name: str):
+            self.name = name
+        async def aclose(self):
+            closed.append(self.name)
+
+    orch = ChatOrchestrator(
+        embeddings=FakeClient("emb"),
+        vectorstore=FakeClient("vs"),
+        llm=FakeClient("llm"),
+        llm_mode="anthropic",
+        top_k=8,
+        max_answer_tokens=1024,
+    )
+    await orch.close_clients()
+    assert sorted(closed) == ["emb", "llm", "vs"]
+
+
+async def test_close_clients_tolerates_clients_without_aclose():
+    """Some ChatClient impls might not need aclose; hasattr guard should skip them silently."""
+    closed: list[str] = []
+
+    class WithClose:
+        async def aclose(self):
+            closed.append("emb")
+
+    class NoClose:
+        pass
+
+    orch = ChatOrchestrator(
+        embeddings=WithClose(),
+        vectorstore=NoClose(),
+        llm=NoClose(),
+        llm_mode="anthropic",
+        top_k=8,
+        max_answer_tokens=1024,
+    )
+    await orch.close_clients()
+    assert closed == ["emb"]
+
+
 async def test_orchestrator_applies_hallucination_guard():
     fake_emb, fake_store = _fake_emb_and_store([])
     fake_llm = _fake_llm(["Based on the policies, you can do X, Y, and Z which are listed in section 3."])

@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     oc_token: str | None = None
     phone_home_interval_seconds: int = 300
     portal_version: str = "0.5.0"
+    # Ask Docs (P1.1)
+    qdrant_url: str = "http://qdrant:6333"
+    ollama_url: str = "http://ollama:11434"
+    ask_docs_embedding_model: str = "nomic-embed-text"
+    ask_docs_chunk_size_tokens: int = 1024
+    ask_docs_chunk_overlap_tokens: int = 128
 
 
 @lru_cache

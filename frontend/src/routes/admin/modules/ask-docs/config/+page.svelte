@@ -67,6 +67,7 @@
       anthropic: { ...config.anthropic, api_key: resolveAnthropicKeyField() as never },
       ollama: { ...config.ollama },
       hoelscher_proxy: {},
+      reranker: { ...config.reranker },
     };
   }
 
@@ -226,6 +227,22 @@
       </div>
     </section>
 
+    <!-- Advanced -->
+    <section class="border border-[color:var(--color-border)] rounded-lg p-4 space-y-3">
+      <h2 class="font-medium">Advanced</h2>
+      <label class="flex items-start gap-3">
+        <input type="checkbox" bind:checked={config.reranker.enabled} class="mt-1" />
+        <span class="text-sm">
+          <span class="block font-medium">Cross-encoder reranking</span>
+          <span class="block text-[color:var(--color-text-muted)] mt-1">
+            Improves citation quality at the cost of ~50–200ms per query. The first chat after
+            enabling pulls an ~80MB model into the backend container (one-time, ~5–10s).
+          </span>
+        </span>
+      </label>
+    </section>
+
+    <!-- Hoelscher proxy placeholder -->
     <section class="border border-[color:var(--color-border)] rounded-lg p-4 opacity-60">
       <h2 class="font-medium">Hoelscher proxy</h2>
       <p class="text-sm text-[color:var(--color-text-muted)] mt-1">Coming soon — managed inference via Hoelscher Automation.</p>

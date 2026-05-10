@@ -154,6 +154,7 @@ export type AskDocsConfig = {
   anthropic: AnthropicSettings;
   ollama: OllamaSettings;
   hoelscher_proxy: Record<string, never>;
+  reranker: { enabled: boolean };
 };
 
 export type ProbeResult = {

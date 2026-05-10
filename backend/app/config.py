@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     cors_origins: list[str] = ["http://localhost:5173"]
     test_database_url: str | None = None
+    uploads_path: str = "/app/data/uploads"
 
 
 @lru_cache
@@ -24,7 +25,5 @@ def resolve_test_database_url() -> str:
     settings = get_settings()
     if settings.test_database_url:
         return settings.test_database_url
-    # Replace the database name in DATABASE_URL with <name>_test.
-    # postgresql+asyncpg://user:pass@host:port/dbname → .../dbname_test
     base, _, dbname = settings.database_url.rpartition("/")
     return f"{base}/{dbname}_test"

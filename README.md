@@ -1,6 +1,12 @@
 # Hoelscher Employee Portal
 
-Self-hosted modular employee portal. See `docs/superpowers/specs/2026-05-09-employee-portal-design.md` for the full product design.
+Self-hosted modular employee portal.
+
+## Documentation
+
+**For operators (IT installing + maintaining a customer install):** read [`docs/index.md`](./docs/index.md). Covers install, first-run, day-to-day operation, backup/restore, upgrade, security, and troubleshooting.
+
+**For internal design + implementation history:** see `../docs/superpowers/specs/` (design intent) and `../docs/superpowers/plans/` (task-by-task implementation plans).
 
 ## Quick start (local dev)
 

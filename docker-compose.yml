@@ -36,6 +36,10 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       COOKIE_SECURE: ${COOKIE_SECURE}
       CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:5173"]}
+      OC_URL: ${OC_URL:-}
+      OC_TOKEN: ${OC_TOKEN:-}
+      PHONE_HOME_INTERVAL_SECONDS: ${PHONE_HOME_INTERVAL_SECONDS:-300}
+      PORTAL_VERSION: ${PORTAL_VERSION:-0.5.0}
     volumes:
       - portal_uploads:/app/data/uploads
     ports:

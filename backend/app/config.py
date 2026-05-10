@@ -13,9 +13,14 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     test_database_url: str | None = None
     uploads_path: str = "/app/data/uploads"
+    sql_echo: bool = False
     reset_password_secret: str | None = None
     verification_secret: str | None = None
-    sql_echo: bool = False
+    # Phone-home (P0d.2b) — opt-in. If oc_url is unset, the loop never starts.
+    oc_url: str | None = None
+    oc_token: str | None = None
+    phone_home_interval_seconds: int = 300
+    portal_version: str = "0.5.0"
 
 
 @lru_cache

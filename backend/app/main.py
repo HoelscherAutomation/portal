@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -34,22 +35,36 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     phone_home_task = None
     if settings.oc_url and settings.oc_token:
-        from app.services.phone_home import phone_home_loop
+        # Validate the configured OC_URL up front so a typo doesn't degrade into
+        # an opaque per-cycle error after the first 30s delay.
+        oc_url_valid = False
+        try:
+            parsed = httpx.URL(settings.oc_url)
+            if parsed.scheme not in ("http", "https"):
+                raise ValueError(
+                    f"OC_URL must use http or https scheme, got: {parsed.scheme!r}"
+                )
+            oc_url_valid = True
+        except (httpx.InvalidURL, ValueError) as exc:
+            logger.error("OC_URL is invalid (%s); phone-home disabled", exc)
 
-        logger.info(
-            "Phone-home enabled — target=%s, interval=%ss",
-            settings.oc_url,
-            settings.phone_home_interval_seconds,
-        )
-        phone_home_task = asyncio.create_task(
-            phone_home_loop(
-                oc_url=settings.oc_url,
-                oc_token=settings.oc_token,
-                portal_version=settings.portal_version,
-                interval_seconds=settings.phone_home_interval_seconds,
-                started_at=time.monotonic(),
+        if oc_url_valid:
+            from app.services.phone_home import phone_home_loop
+
+            logger.info(
+                "Phone-home enabled — target=%s, interval=%ss",
+                settings.oc_url,
+                settings.phone_home_interval_seconds,
             )
-        )
+            phone_home_task = asyncio.create_task(
+                phone_home_loop(
+                    oc_url=settings.oc_url,
+                    oc_token=settings.oc_token,
+                    portal_version=settings.portal_version,
+                    interval_seconds=settings.phone_home_interval_seconds,
+                    started_at=time.monotonic(),
+                )
+            )
     elif settings.oc_url and not settings.oc_token:
         logger.warning("OC_URL set but OC_TOKEN missing — phone-home disabled")
     else:

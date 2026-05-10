@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -5,10 +7,18 @@ from fastapi.staticfiles import StaticFiles
 from app.auth.backend import auth_backend, fastapi_users
 from app.auth.schemas import UserRead, UserUpdate
 from app.config import get_settings
+from app.database import engine
 from app.routes import health, me, modules, tenant
 from app.services.uploads import _ensure_uploads_dir
 
-app = FastAPI(title="Hoelscher Employee Portal")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await engine.dispose()
+
+
+app = FastAPI(title="Hoelscher Employee Portal", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

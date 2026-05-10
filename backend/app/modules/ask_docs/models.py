@@ -42,3 +42,25 @@ class AskDocsDocument(Base):
     chunk_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
+
+
+class AskDocsQuery(Base):
+    """Query log entry — one per chat turn for the admin dashboard (P1.4)."""
+
+    __tablename__ = "ask_docs_queries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    query_text: Mapped[str] = mapped_column(Text, nullable=False)
+    answer_text: Mapped[str] = mapped_column(Text, nullable=False)
+    citation_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    llm_mode: Mapped[str] = mapped_column(String(20), nullable=False)
+    tokens_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False, index=True
+    )

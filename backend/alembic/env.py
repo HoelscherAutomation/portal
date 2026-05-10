@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.config import get_settings
 from app.database import Base
 from app.models import User  # noqa: F401  (ensure model is registered)
-from app.modules.ask_docs.models import AskDocsDocument  # noqa: F401
+from app.modules.ask_docs.models import AskDocsDocument, AskDocsQuery  # noqa: F401
 
 config = context.config
 # Only override the URL if it hasn't already been set programmatically (e.g. by the test suite).

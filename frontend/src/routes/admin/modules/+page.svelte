@@ -50,9 +50,14 @@
           <span class="text-xs text-[color:var(--color-text-subtle)]">{module.target}</span>
           {#if module.enabled}
             {#if module.key === 'ask-docs' && module.enabled}
-              <a href="/admin/modules/ask-docs/config" class="text-xs text-[color:var(--color-accent)] hover:underline">
-                Configure →
-              </a>
+              <span class="flex items-center gap-3">
+                <a href="/admin/modules/ask-docs" class="text-xs text-[color:var(--color-accent)] hover:underline">
+                  Dashboard →
+                </a>
+                <a href="/admin/modules/ask-docs/config" class="text-xs text-[color:var(--color-accent)] hover:underline">
+                  Configure →
+                </a>
+              </span>
             {:else}
               <span class="text-xs text-[color:var(--color-text-subtle)]">Enabled</span>
             {/if}

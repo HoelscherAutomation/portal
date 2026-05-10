@@ -10,3 +10,8 @@ services:
       - ./frontend:/app
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
+
+  worker:
+    volumes:
+      - ./backend:/app
+    command: arq app.workers.worker.WorkerSettings --watch /app

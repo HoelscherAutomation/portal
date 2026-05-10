@@ -36,6 +36,11 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       COOKIE_SECURE: ${COOKIE_SECURE}
       CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:5173"]}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      ASK_DOCS_EMBEDDING_MODEL: ${ASK_DOCS_EMBEDDING_MODEL:-nomic-embed-text}
+      ASK_DOCS_CHUNK_SIZE_TOKENS: ${ASK_DOCS_CHUNK_SIZE_TOKENS:-1024}
+      ASK_DOCS_CHUNK_OVERLAP_TOKENS: ${ASK_DOCS_CHUNK_OVERLAP_TOKENS:-128}
       OC_URL: ${OC_URL:-}
       OC_TOKEN: ${OC_TOKEN:-}
       PHONE_HOME_INTERVAL_SECONDS: ${PHONE_HOME_INTERVAL_SECONDS:-300}
@@ -55,6 +60,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
 
   frontend:
     build:
@@ -67,7 +76,63 @@ services:
       backend:
         condition: service_healthy
 
+  qdrant:
+    image: qdrant/qdrant:v1.13.0
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/6333"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  ollama:
+    image: ollama/ollama:0.5.4
+    volumes:
+      - ollama_models:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "ollama serve &
+       sleep 3
+       ollama pull nomic-embed-text || echo 'ollama pull failed (will retry on first use)'
+       wait"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    build:
+      context: ./backend
+    command: arq app.workers.worker.WorkerSettings
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+      SQL_ECHO: ${SQL_ECHO}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      ASK_DOCS_EMBEDDING_MODEL: ${ASK_DOCS_EMBEDDING_MODEL:-nomic-embed-text}
+      ASK_DOCS_CHUNK_SIZE_TOKENS: ${ASK_DOCS_CHUNK_SIZE_TOKENS:-1024}
+      ASK_DOCS_CHUNK_OVERLAP_TOKENS: ${ASK_DOCS_CHUNK_OVERLAP_TOKENS:-128}
+      OC_URL: ${OC_URL:-}
+      OC_TOKEN: ${OC_TOKEN:-}
+    volumes:
+      - portal_uploads:/app/data/uploads
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      ollama: { condition: service_healthy }
+
 volumes:
   postgres_data:
   redis_data:
   portal_uploads:
+  qdrant_data:
+  ollama_models:

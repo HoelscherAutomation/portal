@@ -35,6 +35,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
       COOKIE_SECURE: ${COOKIE_SECURE}
+    volumes:
+      - portal_uploads:/app/data/uploads
     ports:
       - "${BACKEND_PORT}:8000"
     depends_on:
@@ -56,3 +58,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  portal_uploads:

@@ -38,3 +38,7 @@ Thumbs.db
 htmlcov/
 .coverage
 coverage.xml
+
+# Tenant uploads (logo files) — keep dir, ignore contents
+backend/data/uploads/*
+!backend/data/uploads/.gitkeep

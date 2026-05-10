@@ -1,3 +1,5 @@
+import io
+
 from httpx import AsyncClient
 
 from app.auth.manager import UserManager, get_user_db
@@ -86,3 +88,41 @@ async def test_tenant_config_put_validates_color(client: AsyncClient):
         json={"primary_color": "not-a-hex"},
     )
     assert response.status_code == 422
+
+
+# 1x1 transparent PNG bytes
+_TINY_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
+    "890000000d49444154789c6360606060000000050001a5f645400000000049454e44ae426082"
+)
+
+
+async def test_logo_upload_requires_superuser(client: AsyncClient):
+    await _create_user("user@example.com", "test-password-123")
+    await _login(client, "user@example.com", "test-password-123")
+
+    files = {"file": ("logo.png", io.BytesIO(_TINY_PNG), "image/png")}
+    response = await client.post("/api/tenant/logo", files=files)
+    assert response.status_code == 403
+
+
+async def test_logo_upload_succeeds_for_superuser(client: AsyncClient):
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
+
+    files = {"file": ("logo.png", io.BytesIO(_TINY_PNG), "image/png")}
+    response = await client.post("/api/tenant/logo", files=files)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["logo_filename"] is not None
+    assert body["logo_filename"].startswith("logo-")
+    assert body["logo_filename"].endswith(".png")
+
+
+async def test_logo_upload_rejects_non_image(client: AsyncClient):
+    await _create_user("admin@example.com", "test-password-123", superuser=True)
+    await _login(client, "admin@example.com", "test-password-123")
+
+    files = {"file": ("not-an-image.png", io.BytesIO(b"plain text not png"), "image/png")}
+    response = await client.post("/api/tenant/logo", files=files)
+    assert response.status_code == 400

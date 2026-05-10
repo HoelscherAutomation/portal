@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.auth.backend import auth_backend, fastapi_users
 from app.auth.schemas import UserRead, UserUpdate
 from app.config import get_settings
 from app.routes import health, me, tenant
+from app.services.uploads import _ensure_uploads_dir
 
 app = FastAPI(title="Hoelscher Employee Portal")
 
@@ -15,6 +17,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ensure uploads dir exists at startup, then serve it.
+_ensure_uploads_dir()
+app.mount("/uploads", StaticFiles(directory=get_settings().uploads_path), name="uploads")
 
 app.include_router(health.router, prefix="/api")
 app.include_router(me.router, prefix="/api")

@@ -120,7 +120,12 @@ export type ChatFinalEvent = {
   citations: number[];
 };
 
-export type ChatEvent = ChatSourceEvent | ChatDeltaEvent | ChatFinalEvent;
+export type ChatErrorEvent = {
+  type: 'error';
+  detail: string;
+};
+
+export type ChatEvent = ChatSourceEvent | ChatDeltaEvent | ChatFinalEvent | ChatErrorEvent;
 
 export type ChunkPreview = {
   doc_id: string;

@@ -63,6 +63,36 @@ async def test_chat_streams_sse_events(client: AsyncClient, monkeypatch):
     assert types == ["sources", "delta", "delta", "final"]
 
 
+async def test_chat_emits_error_event_on_orchestrator_failure(client: AsyncClient, monkeypatch):
+    """If orchestrator.run() raises mid-stream (e.g., LLM 4xx), the SSE stream emits an error event."""
+
+    class FailingOrch:
+        async def run(self, *, query, user_id):
+            yield {"type": "sources", "sources": []}
+            raise RuntimeError("simulated LLM 400: credit balance too low")
+
+        async def close_clients(self):
+            return None
+
+    monkeypatch.setattr(
+        "app.modules.ask_docs.routes._make_orchestrator",
+        lambda: FailingOrch(),
+    )
+
+    await _login(client)
+    response = await client.post(
+        "/api/modules/ask-docs/chat",
+        json={"query": "anything"},
+    )
+    assert response.status_code == 200
+
+    body = response.text
+    events = [json.loads(line[len("data: "):]) for line in body.split("\n\n") if line.startswith("data: ")]
+    types = [e["type"] for e in events]
+    assert types == ["sources", "error"]
+    assert "credit balance too low" in events[-1]["detail"]
+
+
 async def test_get_chunk_returns_payload(client: AsyncClient, monkeypatch):
     """GET /chunks/{doc_id}/{chunk_index} fetches a single chunk's payload from Qdrant."""
     captured = {}

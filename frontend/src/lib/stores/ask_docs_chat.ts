@@ -68,7 +68,9 @@ export async function askQuestion(query: string): Promise<void> {
       }
     }
 
-    _updateTurn(turnId, { status: 'done' });
+    chatTurns.update((turns) =>
+      turns.map((t) => (t.id === turnId && t.status === 'streaming' ? { ...t, status: 'done' } : t))
+    );
   } catch (err) {
     _updateTurn(turnId, { status: 'error', errorMessage: String(err) });
   } finally {
@@ -85,6 +87,8 @@ function _applyEvent(turnId: string, event: ChatEvent): void {
     );
   } else if (event.type === 'final') {
     _updateTurn(turnId, { answer: event.answer, citations: event.citations });
+  } else if (event.type === 'error') {
+    _updateTurn(turnId, { status: 'error', errorMessage: event.detail });
   }
 }
 

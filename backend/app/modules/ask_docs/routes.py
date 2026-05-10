@@ -193,6 +193,12 @@ def _make_orchestrator():
     )
 
 
+def _sanitize_error(exc: Exception) -> str:
+    """Surface a short user-facing message for SSE error events."""
+    msg = str(exc) or exc.__class__.__name__
+    return msg[:500]
+
+
 @router.post("/chat")
 async def chat(
     payload: ChatRequest,
@@ -207,6 +213,12 @@ async def chat(
         try:
             async for event in orchestrator.run(query=payload.query, user_id=user.id):
                 yield f"data: {json.dumps(event)}\n\n".encode("utf-8")
+        except Exception as exc:
+            # Headers already sent; can't return 5xx. Emit an error event so the
+            # frontend can show the failure instead of seeing a silently truncated stream.
+            logger.exception("Chat orchestration failed mid-stream")
+            error_event = {"type": "error", "detail": _sanitize_error(exc)}
+            yield f"data: {json.dumps(error_event)}\n\n".encode("utf-8")
         finally:
             await orchestrator.close_clients()
 

@@ -1,8 +1,9 @@
 """Per-module config CRUD with secret encryption + redaction."""
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.database as db_module
 from app.models import ModuleConfig
@@ -41,50 +42,59 @@ def _set_path(d: dict, path: tuple[str, ...], value: Any) -> None:
     cur[path[-1]] = value
 
 
+async def _load_in_session(session: AsyncSession, module_key: str) -> dict:
+    """Load + decrypt a config inside an existing session. Returns defaults if no row."""
+    row = (await session.execute(
+        select(ModuleConfig).where(ModuleConfig.module_key == module_key)
+    )).scalar_one_or_none()
+    if row is None:
+        return {**DEFAULTS[module_key]}
+    return unwrap_encrypted_values(row.config)
+
+
 async def load_config(module_key: str) -> dict:
     """Load the persisted config + decrypt secrets. Returns defaults if no row exists."""
     if module_key not in SCHEMAS:
         raise UnknownModuleError(module_key)
-
     async with db_module.async_session_maker() as session:
-        row = (await session.execute(
-            select(ModuleConfig).where(ModuleConfig.module_key == module_key)
-        )).scalar_one_or_none()
-
-    if row is None:
-        return {**DEFAULTS[module_key]}
-
-    return unwrap_encrypted_values(row.config)
+        return await _load_in_session(session, module_key)
 
 
 async def save_config(module_key: str, payload: dict, *, updated_by: int | None) -> dict:
-    """Validate via Pydantic, encrypt secret paths, upsert. Returns the validated payload (plaintext)."""
+    """Validate via Pydantic, encrypt secret paths, upsert. Returns the validated payload (plaintext).
+
+    Uses a single session for the existing-value read AND the upsert so a concurrent
+    save can't race the {_set: true} sentinel resolution within this connection's
+    transaction window. Cross-connection concurrent saves still last-writer-win,
+    which is acceptable for an admin-only config (rare writes, single user).
+    """
     if module_key not in SCHEMAS:
         raise UnknownModuleError(module_key)
 
-    # Resolve any {"_set": true} sentinels by reading current persisted value.
-    existing = await load_config(module_key)
-    resolved = _resolve_set_sentinels(payload, existing, SECRET_PATHS.get(module_key, []))
-
-    schema = SCHEMAS[module_key]
-    validated = schema(**resolved).model_dump()
-
-    # Encrypt secret-path values in-place before persisting.
-    to_persist = {**validated}
-    for path in SECRET_PATHS.get(module_key, []):
-        plain = _get_path(to_persist, path)
-        if plain is None or plain == "":
-            continue
-        _set_path(to_persist, path, wrap_secret(plain))
-
     async with db_module.async_session_maker() as session:
+        existing = await _load_in_session(session, module_key)
+        resolved = _resolve_set_sentinels(payload, existing, SECRET_PATHS.get(module_key, []))
+
+        schema = SCHEMAS[module_key]
+        validated = schema(**resolved).model_dump()
+
+        # Encrypt secret-path values in-place before persisting.
+        to_persist = {**validated}
+        for path in SECRET_PATHS.get(module_key, []):
+            plain = _get_path(to_persist, path)
+            if plain is None or plain == "":
+                continue
+            _set_path(to_persist, path, wrap_secret(plain))
+
+        # Explicitly set updated_at in the conflict clause — SQLAlchemy's onupdate=func.now()
+        # ORM hook does NOT fire for dialect-level INSERT ... ON CONFLICT.
         stmt = pg_insert(ModuleConfig).values(
             module_key=module_key,
             config=to_persist,
             updated_by=updated_by,
         ).on_conflict_do_update(
             index_elements=["module_key"],
-            set_={"config": to_persist, "updated_by": updated_by},
+            set_={"config": to_persist, "updated_by": updated_by, "updated_at": func.now()},
         )
         await session.execute(stmt)
         await session.commit()

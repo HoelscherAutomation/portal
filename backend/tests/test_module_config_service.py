@@ -77,6 +77,41 @@ async def test_redact_marks_unset_secret_as_not_set():
     assert redacted["anthropic"]["api_key"] == {"_set": False}
 
 
+async def test_save_refreshes_updated_at_on_upsert():
+    """SQLAlchemy onupdate hook does NOT fire for dialect-level INSERT ON CONFLICT;
+    save_config must explicitly set updated_at in the conflict clause."""
+    import asyncio
+    from sqlalchemy import select
+    import app.database as db_module
+    from app.models import ModuleConfig
+
+    base = {
+        "llm_mode": "anthropic",
+        "anthropic": {"api_key": "sk-1", "model": "claude-sonnet-4-6", "max_tokens": 1024},
+        "ollama": {"url": "", "model": "", "max_tokens": 1024},
+        "hoelscher_proxy": {},
+    }
+    await save_config("ask-docs", base, updated_by=None)
+
+    async with db_module.async_session_maker() as session:
+        first = (await session.execute(
+            select(ModuleConfig).where(ModuleConfig.module_key == "ask-docs")
+        )).scalar_one()
+        first_ts = first.updated_at
+
+    await asyncio.sleep(0.05)
+    base["anthropic"]["max_tokens"] = 2048
+    await save_config("ask-docs", base, updated_by=None)
+
+    async with db_module.async_session_maker() as session:
+        second = (await session.execute(
+            select(ModuleConfig).where(ModuleConfig.module_key == "ask-docs")
+        )).scalar_one()
+        assert second.updated_at > first_ts, (
+            f"updated_at should refresh on upsert (was {first_ts}, now {second.updated_at})"
+        )
+
+
 async def test_save_preserves_existing_secret_when_payload_uses_set_marker():
     """If the UI sends `{"_set": true}` it means 'keep existing value' — don't clobber."""
     initial = {

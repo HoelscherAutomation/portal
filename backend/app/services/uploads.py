@@ -35,7 +35,7 @@ async def save_logo(content: bytes, original_name: str) -> str:
             img = Image.open(io.BytesIO(content))
             fmt = img.format  # capture BEFORE verify() invalidates the object
             img.verify()
-        except (UnidentifiedImageError, Image.DecompressionBombError) as exc:
+        except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError) as exc:
             raise InvalidImageError("Uploaded file is not a recognizable image") from exc
         if fmt is None or fmt not in ALLOWED_FORMATS - {"SVG"}:
             raise InvalidImageError(f"Unsupported image format: {fmt}")
@@ -87,5 +87,8 @@ def validate_svg(content: bytes) -> None:
             attr_lower = attr_name.lower().split("}", 1)[-1]
             if attr_lower.startswith("on"):
                 raise InvalidImageError(f"SVG contains event handler attribute: {attr_name}")
-            if "javascript:" in attr_value.lower():
+            value_lower = attr_value.lower()
+            if "javascript:" in value_lower:
                 raise InvalidImageError(f"SVG contains javascript: URI in attribute: {attr_name}")
+            if "data:" in value_lower:
+                raise InvalidImageError(f"SVG contains data: URI in attribute: {attr_name}")

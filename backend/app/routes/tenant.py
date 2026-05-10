@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,6 +8,8 @@ from app.database import get_async_session
 from app.models import TenantConfig, User
 from app.schemas.tenant import TenantConfigRead, TenantConfigUpdate
 from app.services.uploads import InvalidImageError, delete_logo, save_logo
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -52,7 +56,10 @@ async def upload_logo(
     config = await session.get(TenantConfig, 1)
     if config is None:
         # Clean up the newly-saved file since we can't link it.
-        delete_logo(filename)
+        try:
+            delete_logo(filename)
+        except OSError as exc:
+            logger.warning("Failed to clean up orphan logo %s: %s", filename, exc)
         raise HTTPException(status_code=404, detail="Tenant config not initialized")
 
     old_filename = config.logo_filename
@@ -62,6 +69,9 @@ async def upload_logo(
 
     # DB commit succeeded — safe to remove the old file.
     if old_filename:
-        delete_logo(old_filename)
+        try:
+            delete_logo(old_filename)
+        except OSError as exc:
+            logger.warning("Failed to remove old logo %s: %s", old_filename, exc)
 
     return config

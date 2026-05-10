@@ -69,10 +69,14 @@ async def request_module(
     session.add(request)
     try:
         await session.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A pending request for this module already exists",
-        )
+        # Only convert to 409 if it was the partial unique index we expect
+        if "uq_module_requests_pending_per_module" in str(exc.orig):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A pending request for this module already exists",
+            )
+        # Other IntegrityErrors are unexpected — re-raise so they're logged at 500
+        raise
     return {"status": "requested"}

@@ -46,7 +46,9 @@ def main() -> int:
         print(f"User with email {email} already exists.", file=sys.stderr)
         return 2
     except Exception as exc:
-        print(f"Failed to create admin: {exc}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        print(f"\nFailed to create admin: {exc}", file=sys.stderr)
         return 3
     return 0
 

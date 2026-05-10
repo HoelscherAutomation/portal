@@ -21,6 +21,9 @@ async function request<T>(
     });
   } catch (networkErr) {
     // fetch() itself throws on network failure / DNS / CORS denial.
+    // Log the original error so the underlying cause (CORS, DNS, etc.) is
+    // visible in the browser console for debugging.
+    console.error('fetch failed:', networkErr);
     throw {
       status: 0,
       detail: 'Network error — could not reach the server'

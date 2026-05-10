@@ -76,8 +76,10 @@ def _main() -> int:
 
     if args.cmd == "create":
         result = asyncio.run(create_snapshot(qdrant_url=qdrant_url, collection=args.collection))
-        # bash parses: name:container_path
-        print(f"{result['name']}:{result['container_path']}")
+        # Sentinel-prefixed line so bash callers can grep past any startup
+        # warnings (pydantic deprecation, httpx info logs, etc.) that might
+        # land on stdout before our result.
+        print(f"SNAPSHOT_RESULT={result['name']}:{result['container_path']}")
         return 0
 
     if args.cmd == "restore":

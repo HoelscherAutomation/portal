@@ -37,7 +37,7 @@ All configurable via `.env`.
 - `frontend/` — SvelteKit + Tailwind v4
 - `docker-compose.yml` — postgres + redis + backend + frontend
 
-## What works (P0a + P0b + P0c + P0d.2b + P1.1 + P1.2 + P1.3 + P1.4)
+## What works (P0a + P0b + P0c + P0d.2b + P1.1 + P1.2 + P1.3 + P1.4 + P1.3b)
 
 ### Foundation (P0a)
 - `docker compose up` brings up all services
@@ -120,7 +120,15 @@ All configurable via `.env`.
 - Schema: `ask_docs_queries.sources_used` JSONB column added (default `[]`); chat orchestrator now persists the same source payload it streams in the SSE 'sources' event
 - "Dashboard →" link added to the ask-docs card in `/admin/modules` alongside the existing "Configure →"
 
+### Ask Docs reranker (P1.3b)
+- New "Advanced → Cross-encoder reranking" toggle on `/admin/modules/ask-docs/config`
+- When enabled, chat retrieves top-24 candidates from Qdrant → scores them against the query with `fastembed` cross-encoder → passes top-8 to the LLM
+- Lazy model load: first chat after enabling pulls `Xenova/ms-marco-MiniLM-L-6-v2` (~80MB ONNX, ~5-10s extra); subsequent chats just pay the ~50-200ms rerank step
+- New `Reranker` class in `app/modules/ask_docs/reranker.py` — constructor doesn't import fastembed (no RAM cost when disabled)
+- `ChatOrchestrator` accepts `reranker`, `reranker_enabled`, `pre_rerank_top_k` constructor params; default behavior unchanged when `reranker_enabled=False`
+- Pinned `fastembed==0.6.1` (the originally-spec'd 0.5.1 conflicts with the project's `pillow==11.0.0`)
+- Voyage embeddings opt-in still deferred — heavy re-index UX, will build when there's actual customer demand
+
 ## What's next
 
-P1.3b adds Voyage embeddings opt-in (with re-index workflow) + nomic-rerank toggle.
-P1.5 adds watched folder + backup/restore.
+P1.5 adds watched folder + backup/restore (operational completeness for a real customer install).

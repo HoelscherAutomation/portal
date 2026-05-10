@@ -158,9 +158,12 @@ docker compose run --rm -T -v "$WORK:/work" backend \
 # ── 8. Restore uploads via transient backend container ──────────────────────
 # Mount the host work_dir AND let the transient container see the named
 # `portal_uploads` volume by inheriting the backend service definition.
+# NOTE: no `|| true` here — we want any failure (permission denied, disk full,
+# missing source dir) to abort the restore loudly via `set -e` rather than
+# silently report success with zero uploads restored.
 echo "▶ Restoring uploads"
 docker compose run --rm -T -v "$WORK:/work" backend \
-    bash -c 'find /app/data/uploads -mindepth 1 -delete && cp -r /work/uploads/. /app/data/uploads/ 2>/dev/null || true'
+    bash -c 'set -e; find /app/data/uploads -mindepth 1 -delete; if [ -d /work/uploads ]; then cp -r /work/uploads/. /app/data/uploads/; else echo "WARN: backup has no uploads dir" >&2; fi'
 
 # ── 9. Restart write-side services (maintenance window ends) ────────────────
 echo "▶ Starting backend, worker, frontend"

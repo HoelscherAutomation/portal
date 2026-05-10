@@ -102,31 +102,45 @@ async def probe_config(
     settings = await _resolve_set_markers_for_probe(module_key, body.mode, body.settings)
     started = time.monotonic()
 
+    # Build the client outside the timed coroutine so we can guarantee aclose
+    # in finally — even if asyncio.wait_for cancels the inner task mid-stream.
+    # Without this, every probe (especially timed-out ones) leaks an httpx pool.
     try:
-        async def _do_probe():
-            client = _build_transient_client(body.mode, settings)
-            received = ""
-            async for delta in client.stream_chat(
-                system="You answer with exactly one word.",
-                user="Say 'ok'.",
-                max_tokens=8,
-            ):
-                received += delta
-                if len(received) > 32:
-                    break
-            return received
+        client = _build_transient_client(body.mode, settings)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        return ProbeResult(ok=False, error=_scrub_secrets(str(exc))[:500])
 
+    async def _do_probe():
+        received = ""
+        async for delta in client.stream_chat(
+            system="You answer with exactly one word.",
+            user="Say 'ok'.",
+            max_tokens=8,
+        ):
+            received += delta
+            if len(received) > 32:
+                break
+        return received
+
+    try:
         await asyncio.wait_for(_do_probe(), timeout=10.0)
         latency_ms = int((time.monotonic() - started) * 1000)
         return ProbeResult(ok=True, latency_ms=latency_ms)
     except asyncio.TimeoutError:
         return ProbeResult(ok=False, error="Probe timed out after 10s")
     except HTTPException:
-        # Don't swallow HTTPException — let FastAPI return its proper status code.
         raise
     except Exception as exc:
         logger.exception("Probe failed for mode=%s", body.mode)
         return ProbeResult(ok=False, error=_scrub_secrets(str(exc))[:500])
+    finally:
+        if hasattr(client, "aclose"):
+            try:
+                await client.aclose()
+            except Exception:
+                logger.exception("Failed to close transient probe client")
 
 
 async def _resolve_set_markers_for_probe(module_key: str, mode: str, settings: dict) -> dict:

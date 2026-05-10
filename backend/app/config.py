@@ -1,6 +1,16 @@
 from functools import lru_cache
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Common weak / placeholder SECRET_KEY values we should refuse at startup.
+_WEAK_SECRET_KEYS = {
+    "change-me-to-a-long-random-string",
+    "change-me",
+    "secret",
+    "changeme",
+    "default",
+}
 
 
 class Settings(BaseSettings):
@@ -11,6 +21,37 @@ class Settings(BaseSettings):
     secret_key: str
     cookie_secure: bool = False
     cors_origins: list[str] = ["http://localhost:5173"]
+
+    @field_validator("secret_key")
+    @classmethod
+    def _validate_secret_key(cls, v: str) -> str:
+        """SECRET_KEY signs JWTs AND derives the Fernet key for module_configs
+        secret encryption. A weak/default value compromises both auth and
+        secrets-at-rest. Refuse < 32 chars or any well-known placeholder."""
+        if len(v) < 32:
+            raise ValueError(
+                f"SECRET_KEY too short ({len(v)} chars); need ≥ 32. "
+                "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(48))'"
+            )
+        if v.strip().lower() in _WEAK_SECRET_KEYS:
+            raise ValueError(
+                "SECRET_KEY appears to be a placeholder/default. "
+                "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(48))'"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def _validate_cors_credentials_combo(self) -> "Settings":
+        """`Allow-Origin: *` with credentials is a known browser-bypassable
+        combination (FastAPI/Starlette doesn't enforce the incompatibility).
+        Refuse the misconfig at startup."""
+        if "*" in self.cors_origins:
+            raise ValueError(
+                "CORS_ORIGINS=['*'] is unsafe (the portal sends cookies). "
+                "Set CORS_ORIGINS to your portal origin(s) explicitly."
+            )
+        return self
+
     test_database_url: str | None = None
     uploads_path: str = "/app/data/uploads"
     sql_echo: bool = False

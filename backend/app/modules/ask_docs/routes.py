@@ -53,6 +53,11 @@ _ALLOWED_CONTENT_TYPES = {
     "text/markdown",
 }
 
+# Cap upload size to bound memory + disk impact. Docs over 50 MB are atypical
+# for this product (handbooks, policies, etc.); larger ones likely indicate
+# a misuse or a bug. Returns 413 cleanly instead of consuming RAM unbounded.
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
 
 def _ask_docs_dir() -> Path:
     s = get_settings()
@@ -106,13 +111,23 @@ async def upload_document(
         )
 
     content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+        )
     doc_id = uuid.uuid4()
-    storage_path = _ask_docs_dir() / f"{doc_id}-{file.filename}"
+    # SECURITY: PurePosixPath(...).name strips any directory components from
+    # the user-supplied filename. Without this, a filename like "../../etc/x"
+    # would resolve outside the uploads dir.
+    from pathlib import PurePosixPath
+    safe_name = PurePosixPath(file.filename or "untitled").name or "untitled"
+    storage_path = _ask_docs_dir() / f"{doc_id}-{safe_name}"
     storage_path.write_bytes(content)
 
     document = AskDocsDocument(
         id=doc_id,
-        filename=file.filename or "untitled",
+        filename=safe_name,
         content_type=file.content_type,
         size_bytes=len(content),
         uploaded_by=user.id,
@@ -160,12 +175,16 @@ async def get_document(
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: uuid.UUID,
-    _user: User = Depends(current_active_user),
+    user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ) -> Response:
     doc = await session.get(AskDocsDocument, document_id)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    # Only the uploader OR a superuser can delete. Without this check, any
+    # authenticated user could wipe another user's documents.
+    if doc.uploaded_by is not None and doc.uploaded_by != user.id and not user.is_superuser:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your document")
 
     storage_path = Path(doc.storage_path) if doc.storage_path else None
     await session.delete(doc)

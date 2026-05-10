@@ -1,4 +1,5 @@
 """Chat orchestrator: retrieve → build prompt → stream LLM → parse citations → persist."""
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator
@@ -22,6 +23,9 @@ class ChatOrchestrator:
         llm_mode: str,
         top_k: int,
         max_answer_tokens: int,
+        reranker=None,
+        reranker_enabled: bool = False,
+        pre_rerank_top_k: int = 24,
     ):
         self._embeddings = embeddings
         self._vectorstore = vectorstore
@@ -29,6 +33,9 @@ class ChatOrchestrator:
         self._llm_mode = llm_mode
         self._top_k = top_k
         self._max_answer_tokens = max_answer_tokens
+        self._reranker = reranker
+        self._reranker_enabled = reranker_enabled
+        self._pre_rerank_top_k = pre_rerank_top_k
 
     async def run(self, *, query: str, user_id: int | None) -> AsyncIterator[dict]:
         """Yield events for SSE consumption.
@@ -40,12 +47,24 @@ class ChatOrchestrator:
         """
         started = time.monotonic()
 
-        sources = await retrieve_sources(
-            query=query,
-            top_k=self._top_k,
-            embeddings=self._embeddings,
-            vectorstore=self._vectorstore,
-        )
+        if self._reranker_enabled and self._reranker is not None:
+            candidates = await retrieve_sources(
+                query=query,
+                top_k=self._pre_rerank_top_k,
+                embeddings=self._embeddings,
+                vectorstore=self._vectorstore,
+            )
+            # asyncio.to_thread keeps CPU-bound rerank off the event loop
+            sources = await asyncio.to_thread(
+                self._reranker.rerank, query, candidates, self._top_k
+            )
+        else:
+            sources = await retrieve_sources(
+                query=query,
+                top_k=self._top_k,
+                embeddings=self._embeddings,
+                vectorstore=self._vectorstore,
+            )
         sources_payload = [
             {
                 "number": s.number,

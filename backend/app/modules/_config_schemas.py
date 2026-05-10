@@ -16,11 +16,16 @@ class OllamaConfig(BaseModel):
     max_tokens: int = Field(default=1024, ge=1, le=8192)
 
 
+class RerankerConfig(BaseModel):
+    enabled: bool = False
+
+
 class AskDocsConfigSchema(BaseModel):
     llm_mode: Literal["anthropic", "ollama", "hoelscher_proxy"] = "anthropic"
     anthropic: AnthropicConfig = AnthropicConfig()
     ollama: OllamaConfig = OllamaConfig()
     hoelscher_proxy: dict = Field(default_factory=dict)
+    reranker: RerankerConfig = RerankerConfig()
 
 
 # Per-module schema registry. To add a new module's config: register here.

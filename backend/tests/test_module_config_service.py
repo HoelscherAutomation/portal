@@ -15,6 +15,7 @@ async def test_load_returns_defaults_when_no_row():
     assert config["anthropic"]["model"] == "claude-sonnet-4-6"
     assert config["anthropic"]["api_key"] is None
     assert config["ollama"]["url"] == ""
+    assert config["reranker"] == {"enabled": False}
 
 
 async def test_save_then_load_round_trip_with_secret():

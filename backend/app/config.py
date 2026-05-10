@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     uploads_path: str = "/app/data/uploads"
     reset_password_secret: str | None = None
     verification_secret: str | None = None
+    sql_echo: bool = False
 
 
 @lru_cache

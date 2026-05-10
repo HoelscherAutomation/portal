@@ -14,7 +14,11 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_async_engine(get_settings().database_url, echo=False, future=True)
+engine = create_async_engine(
+    get_settings().database_url,
+    echo=get_settings().sql_echo,
+    future=True,
+)
 async_session_maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 

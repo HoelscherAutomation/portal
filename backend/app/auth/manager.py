@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncGenerator
 from typing import Optional
 
@@ -9,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database import get_async_session
 from app.models import User
+
+logger = logging.getLogger(__name__)
 
 
 async def get_user_db(
@@ -26,8 +29,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     )
 
     async def on_after_register(self, user: User, request: Optional[Request] = None) -> None:
-        # Hook for future welcome flow; intentionally minimal in v1.
-        pass
+        logger.info("Registered user id=%s email=%s", user.id, user.email)
 
 
 async def get_user_manager(

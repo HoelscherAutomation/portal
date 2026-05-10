@@ -6,6 +6,8 @@ import asyncio
 import getpass
 import sys
 
+from fastapi_users.exceptions import UserAlreadyExists
+
 from app.auth.manager import UserManager, get_user_db
 from app.auth.schemas import UserCreate
 from app.database import get_async_session
@@ -38,7 +40,14 @@ def main() -> int:
     if len(password) < 8:
         print("Password must be at least 8 characters.", file=sys.stderr)
         return 1
-    asyncio.run(create_admin(email, password))
+    try:
+        asyncio.run(create_admin(email, password))
+    except UserAlreadyExists:
+        print(f"User with email {email} already exists.", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"Failed to create admin: {exc}", file=sys.stderr)
+        return 3
     return 0
 
 

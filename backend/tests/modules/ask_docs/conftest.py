@@ -1,9 +1,43 @@
 """Generate sample PDF/DOCX/TXT files in temp dirs for parser tests."""
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import fitz  # pymupdf
 import pytest
 from docx import Document
+
+from app.modules.ask_docs.vectorstore import VectorStore
+
+_TEST_COLLECTION = "ask_docs_chunks_test"
+
+
+@pytest.fixture
+def vectorstore_factory():
+    """Sync fixture that returns an async context manager for a clean VectorStore.
+
+    The underlying AsyncQdrantClient (httpx) binds asyncio primitives to the
+    loop that first drives it. By deferring construction into the test's own
+    event loop (via async context manager) we avoid cross-loop binding errors
+    that occur when an async fixture and its test end up on different loops.
+    """
+    from app.config import get_settings
+
+    @asynccontextmanager
+    async def _make():
+        store = VectorStore(
+            url=get_settings().qdrant_url,
+            collection_name=_TEST_COLLECTION,
+            vector_size=4,  # tiny for tests
+        )
+        try:
+            await store.ensure_collection()
+            await store.delete_all()
+            yield store
+        finally:
+            await store.delete_all()
+            await store.aclose()
+
+    return _make
 
 
 @pytest.fixture

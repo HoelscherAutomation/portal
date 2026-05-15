@@ -4,6 +4,43 @@ import uuid as _uuid
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 
+from app.modules.ask_docs.retrieval_types import RetrievalFilters
+
+
+def _build_qdrant_filter(filters: RetrievalFilters | None) -> qmodels.Filter | None:
+    """Translate product-facing filters to a Qdrant Filter. Returns None when no constraints apply."""
+    if filters is None:
+        return None
+    conditions: list[qmodels.FieldCondition] = []
+
+    if filters.doc_ids:
+        conditions.append(qmodels.FieldCondition(
+            key="doc_id",
+            match=qmodels.MatchAny(any=filters.doc_ids),
+        ))
+    if filters.content_types:
+        conditions.append(qmodels.FieldCondition(
+            key="content_type",
+            match=qmodels.MatchAny(any=filters.content_types),
+        ))
+    if filters.uploaded_by:
+        conditions.append(qmodels.FieldCondition(
+            key="uploaded_by",
+            match=qmodels.MatchAny(any=filters.uploaded_by),
+        ))
+    if filters.uploaded_after is not None or filters.uploaded_before is not None:
+        conditions.append(qmodels.FieldCondition(
+            key="uploaded_at",
+            range=qmodels.DatetimeRange(
+                gte=filters.uploaded_after,
+                lt=filters.uploaded_before,
+            ),
+        ))
+
+    if not conditions:
+        return None
+    return qmodels.Filter(must=conditions)
+
 
 class VectorStore:
     def __init__(
@@ -67,12 +104,19 @@ class VectorStore:
         ]
         await self._get_client().upsert(collection_name=self._collection, points=qpoints)
 
-    async def search(self, *, query_vector: list[float], top_k: int = 8) -> list[dict]:
-        """Return top_k payloads ordered by cosine similarity."""
+    async def search(
+        self,
+        *,
+        query_vector: list[float],
+        top_k: int = 8,
+        filters: RetrievalFilters | None = None,
+    ) -> list[dict]:
+        """Return top_k payloads ordered by cosine similarity, optionally filtered."""
         results = await self._get_client().search(
             collection_name=self._collection,
             query_vector=query_vector,
             limit=top_k,
+            query_filter=_build_qdrant_filter(filters),
         )
         return [r.payload for r in results]
 

@@ -68,3 +68,19 @@ class AskDocsQuery(Base):
     sources_used: Mapped[list[dict]] = mapped_column(
         JSONB, nullable=False, server_default=text("'[]'::jsonb"),
     )
+
+
+class AskDocsMigrationState(Base):
+    """Generic resume cursor table for Ask Docs admin migrations.
+
+    Each migration script writes/reads under its own `name`. The `state` JSONB
+    holds whatever the script needs to resume — typically a Qdrant scroll offset.
+    """
+
+    __tablename__ = "ask_docs_migration_state"
+
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    state: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )

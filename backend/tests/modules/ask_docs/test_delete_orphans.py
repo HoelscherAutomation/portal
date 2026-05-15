@@ -45,6 +45,7 @@ async def test_delete_orphans_removes_only_orphan_points(live_doc_id, vectorstor
                 session=session, vectorstore=store, confirm=True,
             )
         assert result["deleted_doc_ids"] == ["00000000-0000-0000-0000-000000000003"]
+        assert result["failed_deletes"] == []
         assert result["dry_run"] is False
 
         # Live doc's chunks remain; orphan's chunks gone
@@ -72,6 +73,7 @@ async def test_delete_orphans_dry_run_does_nothing(vectorstore_factory):
         assert result["dry_run"] is True
         assert "00000000-0000-0000-0000-000000000004" in result["orphan_doc_ids"]
         assert result["deleted_doc_ids"] == []
+        assert result["failed_deletes"] == []
 
         # Point still present
         remaining = await store.search(query_vector=[1.0, 0, 0, 0], top_k=10)
@@ -94,3 +96,4 @@ async def test_delete_orphans_no_orphans_returns_empty_lists(live_doc_id, vector
             )
         assert result["orphan_doc_ids"] == []
         assert result["deleted_doc_ids"] == []
+        assert result["failed_deletes"] == []

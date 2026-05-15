@@ -73,17 +73,38 @@ class VectorStore:
             self._client = None
 
     async def ensure_collection(self) -> None:
-        """Create the collection if it doesn't exist."""
+        """Create the collection if it doesn't exist, and ensure payload indexes are present."""
         existing = await self._get_client().get_collections()
-        if self._collection in [c.name for c in existing.collections]:
-            return
-        await self._get_client().create_collection(
-            collection_name=self._collection,
-            vectors_config=qmodels.VectorParams(
-                size=self._vector_size,
-                distance=qmodels.Distance.COSINE,
-            ),
-        )
+        if self._collection not in [c.name for c in existing.collections]:
+            await self._get_client().create_collection(
+                collection_name=self._collection,
+                vectors_config=qmodels.VectorParams(
+                    size=self._vector_size,
+                    distance=qmodels.Distance.COSINE,
+                ),
+            )
+        await self._ensure_payload_indexes()
+
+    async def _ensure_payload_indexes(self) -> None:
+        """Create payload indexes used by RetrievalFilters. Idempotent — ignores already-exists errors."""
+        index_specs = [
+            ("doc_id", qmodels.PayloadSchemaType.KEYWORD),
+            ("content_type", qmodels.PayloadSchemaType.KEYWORD),
+            ("uploaded_by", qmodels.PayloadSchemaType.INTEGER),
+            ("uploaded_at", qmodels.PayloadSchemaType.DATETIME),
+        ]
+        for field_name, schema in index_specs:
+            try:
+                await self._get_client().create_payload_index(
+                    collection_name=self._collection,
+                    field_name=field_name,
+                    field_schema=schema,
+                )
+            except Exception:
+                # Qdrant raises if the index already exists — that's the idempotent path.
+                # Other errors (collection missing, schema conflict) are also swallowed here;
+                # collection-level health is the caller's concern via ensure_collection above.
+                pass
 
     async def delete_all(self) -> None:
         """Delete every point in the collection. For tests."""

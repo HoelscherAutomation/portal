@@ -108,15 +108,22 @@ async def _main() -> int:
     vectorstore = VectorStore(url=s.qdrant_url, collection_name=_COLLECTION, vector_size=768)
     async for session in get_async_session():
         try:
-            counters = await run_validation(
-                session=session, vectorstore=vectorstore, ignore_orphans=args.ignore_orphans,
-            )
-            _print_report(counters)
-            return counters["exit_code"]
+            try:
+                counters = await run_validation(
+                    session=session, vectorstore=vectorstore, ignore_orphans=args.ignore_orphans,
+                )
+                _print_report(counters)
+                return counters["exit_code"]
+            except Exception as exc:
+                logger.exception("Validation aborted: %s", exc)
+                return 2  # Distinct from validation FAIL (1) so operator can tell tool-error from data-error
         finally:
             await vectorstore.aclose()
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(_main()))
+    try:
+        sys.exit(asyncio.run(_main()))
+    except KeyboardInterrupt:
+        sys.exit(130)

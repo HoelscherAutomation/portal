@@ -142,19 +142,26 @@ async def run_backfill(
     return counters
 
 
-async def _main() -> None:
+async def _main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     s = get_settings()
     vectorstore = VectorStore(url=s.qdrant_url, collection_name=_COLLECTION, vector_size=768)
     async for session in get_async_session():
         try:
-            await run_backfill(session=session, vectorstore=vectorstore)
+            try:
+                counters = await run_backfill(session=session, vectorstore=vectorstore)
+                logger.info("Backfill summary: %s", counters)
+                return 0
+            except Exception as exc:
+                logger.exception("Backfill aborted: %s", exc)
+                return 1
         finally:
             await vectorstore.aclose()
+    return 0
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(_main())
+        sys.exit(asyncio.run(_main()))
     except KeyboardInterrupt:
         sys.exit(130)

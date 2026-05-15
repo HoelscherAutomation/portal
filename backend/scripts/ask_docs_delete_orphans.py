@@ -24,17 +24,13 @@ logger = logging.getLogger("ask_docs.delete_orphans")
 _COLLECTION = "ask_docs_chunks"
 
 
-async def find_and_delete_orphans(
+async def find_orphans(
     *,
     session: AsyncSession,
     vectorstore: VectorStore,
-    confirm: bool = False,
     batch_size: int = 1024,
-) -> dict:
-    """Find orphan doc_ids. If confirm=True, delete their chunks. Returns report.
-
-    Returns: {orphan_doc_ids: list[str], deleted_doc_ids: list[str], dry_run: bool}
-    """
+) -> list[str]:
+    """Read-only: scroll Qdrant, return sorted list of orphan doc_ids."""
     client = vectorstore._get_client()
     # Read collection from the supplied vectorstore so tests can target their own
     # isolated collection while production runs against _COLLECTION.
@@ -56,22 +52,57 @@ async def find_and_delete_orphans(
         offset = next_offset
 
     if not seen_doc_ids:
-        return {"orphan_doc_ids": [], "deleted_doc_ids": [], "dry_run": not confirm}
+        return []
 
     result = await session.execute(
         select(AskDocsDocument.id).where(AskDocsDocument.id.in_(seen_doc_ids))
     )
     live_doc_ids = {str(r) for r in result.scalars().all()}
-    orphans = sorted(seen_doc_ids - live_doc_ids)
+    return sorted(seen_doc_ids - live_doc_ids)
 
+
+async def delete_orphans_by_id(
+    *,
+    vectorstore: VectorStore,
+    orphan_doc_ids: list[str],
+) -> dict:
+    """Delete the specified orphan doc_ids. Returns report with deleted/failed split."""
+    deleted: list[str] = []
+    failed: list[str] = []
+    for doc_id in orphan_doc_ids:
+        try:
+            await vectorstore.delete_by_doc_id(doc_id)
+            deleted.append(doc_id)
+            logger.info("Deleted orphan chunks for doc_id=%s", doc_id)
+        except Exception as exc:
+            failed.append(doc_id)
+            logger.exception("delete_by_doc_id failed for %s: %s", doc_id, exc)
+    return {"deleted_doc_ids": deleted, "failed_deletes": failed}
+
+
+async def find_and_delete_orphans(
+    *,
+    session: AsyncSession,
+    vectorstore: VectorStore,
+    confirm: bool = False,
+    batch_size: int = 1024,
+) -> dict:
+    """Find orphans; if confirm=True, delete them. Used by tests; CLI uses the split functions directly."""
+    orphans = await find_orphans(session=session, vectorstore=vectorstore, batch_size=batch_size)
     if not confirm:
-        return {"orphan_doc_ids": orphans, "deleted_doc_ids": [], "dry_run": True}
-
-    for doc_id in orphans:
-        await vectorstore.delete_by_doc_id(doc_id)
-        logger.info("Deleted orphan chunks for doc_id=%s", doc_id)
-
-    return {"orphan_doc_ids": orphans, "deleted_doc_ids": orphans, "dry_run": False}
+        return {
+            "orphan_doc_ids": orphans,
+            "deleted_doc_ids": [],
+            "failed_deletes": [],
+            "dry_run": True,
+        }
+    delete_report = await delete_orphans_by_id(vectorstore=vectorstore, orphan_doc_ids=orphans)
+    return {
+        "orphan_doc_ids": orphans,
+        "deleted_doc_ids": delete_report["deleted_doc_ids"],
+        "failed_deletes": delete_report["failed_deletes"],
+        "dry_run": False,
+    }
 
 
 async def _main() -> int:
@@ -84,28 +115,37 @@ async def _main() -> int:
     vectorstore = VectorStore(url=s.qdrant_url, collection_name=_COLLECTION, vector_size=768)
     async for session in get_async_session():
         try:
-            preview = await find_and_delete_orphans(
-                session=session, vectorstore=vectorstore, confirm=False,
-            )
-            if not preview["orphan_doc_ids"]:
-                print("No orphans found.")
-                return 0
-            print(f"Found {len(preview['orphan_doc_ids'])} orphan doc_ids:")
-            for d in preview["orphan_doc_ids"]:
-                print(f"  - {d}")
-            if not args.yes:
-                resp = input("Delete these orphan chunks? [y/N] ").strip().lower()
-                if resp != "y":
-                    print("Aborted.")
+            try:
+                orphans = await find_orphans(session=session, vectorstore=vectorstore)
+                if not orphans:
+                    print("No orphans found.")
                     return 0
-            await find_and_delete_orphans(
-                session=session, vectorstore=vectorstore, confirm=True,
-            )
-            return 0
+                print(f"Found {len(orphans)} orphan doc_ids:")
+                for d in orphans:
+                    print(f"  - {d}")
+                if not args.yes:
+                    resp = input("Delete these orphan chunks? [y/N] ").strip().lower()
+                    if resp != "y":
+                        print("Aborted.")
+                        return 0
+                report = await delete_orphans_by_id(vectorstore=vectorstore, orphan_doc_ids=orphans)
+                print(f"Deleted: {len(report['deleted_doc_ids'])}, Failed: {len(report['failed_deletes'])}")
+                if report["failed_deletes"]:
+                    print("Failed doc_ids:")
+                    for d in report["failed_deletes"]:
+                        print(f"  - {d}")
+                    return 1
+                return 0
+            except Exception as exc:
+                logger.exception("Aborted: %s", exc)
+                return 2
         finally:
             await vectorstore.aclose()
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(_main()))
+    try:
+        sys.exit(asyncio.run(_main()))
+    except KeyboardInterrupt:
+        sys.exit(130)

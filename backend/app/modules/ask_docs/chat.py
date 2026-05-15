@@ -9,6 +9,7 @@ from app.models import AskDocsQuery
 from app.modules.ask_docs.citations import apply_hallucination_guard, parse_citation_numbers
 from app.modules.ask_docs.prompts import SYSTEM_PROMPT, build_user_message
 from app.modules.ask_docs.retrieval import retrieve_sources
+from app.modules.ask_docs.retrieval_types import RetrievalQuery
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +50,7 @@ class ChatOrchestrator:
 
         if self._reranker_enabled and self._reranker is not None:
             candidates = await retrieve_sources(
-                query=query,
-                top_k=self._pre_rerank_top_k,
+                query=RetrievalQuery(text=query, top_k=self._pre_rerank_top_k),
                 embeddings=self._embeddings,
                 vectorstore=self._vectorstore,
             )
@@ -67,8 +67,7 @@ class ChatOrchestrator:
             )
         else:
             sources = await retrieve_sources(
-                query=query,
-                top_k=self._top_k,
+                query=RetrievalQuery(text=query, top_k=self._top_k),
                 embeddings=self._embeddings,
                 vectorstore=self._vectorstore,
             )

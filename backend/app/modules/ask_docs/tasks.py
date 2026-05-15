@@ -44,6 +44,11 @@ async def index_document(ctx: dict, document_id: str) -> None:
         path = Path(doc.storage_path)
         content_type = doc.content_type
         filename = doc.filename
+        uploaded_by = doc.uploaded_by
+        # DB column is timezone-naive (DateTime, not DateTime(timezone=True)) — see project-wide
+        # schema convention. Containers run UTC, so appending "Z" is safe for now. Future cleanup:
+        # migrate uploaded_at to DateTime(timezone=True) across all AskDocs tables.
+        uploaded_at_iso = doc.uploaded_at.isoformat() + "Z"
 
     error_msg: str | None = None
     chunk_count = 0
@@ -68,7 +73,13 @@ async def index_document(ctx: dict, document_id: str) -> None:
                         "page_num": chunk.page_num,
                         "chunk_index": chunk.chunk_index,
                         "content": chunk.text,
-                        "source_path": filename,
+                        "source_path": filename,  # legacy key — consumed by retrieval.py FormattedSource
+                        # Document-level metadata for retrieval-time filtering
+                        "filename": filename,  # canonical filename key for P2.1A+; filterable
+                        "content_type": content_type,
+                        "uploaded_by": uploaded_by,
+                        "uploaded_at": uploaded_at_iso,
+                        "payload_schema_version": 2,
                     },
                 }
                 for chunk, vec in zip(chunks, vectors, strict=True)

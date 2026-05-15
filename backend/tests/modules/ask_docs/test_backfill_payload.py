@@ -105,3 +105,15 @@ async def test_backfill_resumes_from_saved_offset(seeded_doc, vectorstore_factor
         # Strict check: second run only scans the remainder, proving the saved offset was loaded
         assert counters["scanned"] == 5
         assert counters["skipped_already_v2"] == 0
+
+
+async def test_backfill_empty_corpus(vectorstore_factory):
+    """Run backfill against a collection with zero points — should be a no-op."""
+    async with vectorstore_factory() as store:
+        async with db_module.async_session_maker() as session:
+            counters = await run_backfill(session=session, vectorstore=store, batch_size=100)
+        assert counters["scanned"] == 0
+        assert counters["updated"] == 0
+        assert counters["skipped_already_v2"] == 0
+        assert counters["skipped_missing_doc"] == 0
+        assert counters["failed"] == 0

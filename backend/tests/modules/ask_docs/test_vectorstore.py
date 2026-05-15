@@ -73,18 +73,21 @@ def test_build_filter_doc_ids() -> None:
     assert f is not None
     assert len(f.must) == 1
     assert f.must[0].key == "doc_id"
+    assert f.must[0].match.any == ["a", "b"]
 
 
 def test_build_filter_content_types() -> None:
     f = _build_qdrant_filter(RetrievalFilters(content_types=["application/pdf"]))
     assert f is not None
     assert f.must[0].key == "content_type"
+    assert f.must[0].match.any == ["application/pdf"]
 
 
 def test_build_filter_uploaded_by() -> None:
     f = _build_qdrant_filter(RetrievalFilters(uploaded_by=[42]))
     assert f is not None
     assert f.must[0].key == "uploaded_by"
+    assert f.must[0].match.any == [42]
 
 
 def test_build_filter_date_range() -> None:
@@ -96,6 +99,8 @@ def test_build_filter_date_range() -> None:
     )
     assert f is not None
     assert f.must[0].key == "uploaded_at"
+    assert f.must[0].range.gte == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert f.must[0].range.lt == datetime(2026, 6, 1, tzinfo=timezone.utc)
 
 
 def test_build_filter_uploaded_after_only() -> None:
@@ -105,6 +110,8 @@ def test_build_filter_uploaded_after_only() -> None:
     assert f is not None
     assert len(f.must) == 1
     assert f.must[0].key == "uploaded_at"
+    assert f.must[0].range.gte == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert f.must[0].range.lt is None
 
 
 def test_build_filter_combines_all() -> None:
@@ -133,3 +140,61 @@ async def test_search_with_doc_id_filter_excludes_others(vectorstore_factory) ->
         )
         doc_ids = {r["doc_id"] for r in results}
         assert doc_ids == {"keep"}
+
+
+async def test_search_with_content_type_filter_excludes_others(vectorstore_factory) -> None:
+    async with vectorstore_factory() as store:
+        await store.upsert([
+            {"vector": [1.0, 0, 0, 0], "payload": {
+                "doc_id": "d1", "content": "x", "content_type": "application/pdf",
+            }},
+            {"vector": [0.99, 0, 0, 0], "payload": {
+                "doc_id": "d2", "content": "y", "content_type": "text/plain",
+            }},
+        ])
+        results = await store.search(
+            query_vector=[1.0, 0, 0, 0],
+            top_k=10,
+            filters=RetrievalFilters(content_types=["application/pdf"]),
+        )
+        assert {r["doc_id"] for r in results} == {"d1"}
+
+
+async def test_search_with_uploaded_by_filter_excludes_others(vectorstore_factory) -> None:
+    async with vectorstore_factory() as store:
+        await store.upsert([
+            {"vector": [1.0, 0, 0, 0], "payload": {
+                "doc_id": "d1", "content": "x", "uploaded_by": 1,
+            }},
+            {"vector": [0.99, 0, 0, 0], "payload": {
+                "doc_id": "d2", "content": "y", "uploaded_by": 2,
+            }},
+        ])
+        results = await store.search(
+            query_vector=[1.0, 0, 0, 0],
+            top_k=10,
+            filters=RetrievalFilters(uploaded_by=[1]),
+        )
+        assert {r["doc_id"] for r in results} == {"d1"}
+
+
+async def test_search_with_date_range_filter_excludes_others(vectorstore_factory) -> None:
+    async with vectorstore_factory() as store:
+        await store.upsert([
+            {"vector": [1.0, 0, 0, 0], "payload": {
+                "doc_id": "old", "content": "x", "uploaded_at": "2026-01-15T00:00:00Z",
+            }},
+            {"vector": [0.99, 0, 0, 0], "payload": {
+                "doc_id": "new", "content": "y", "uploaded_at": "2026-05-15T00:00:00Z",
+            }},
+        ])
+        # Filter for points uploaded between April 1 and June 1 — only "new" should match
+        results = await store.search(
+            query_vector=[1.0, 0, 0, 0],
+            top_k=10,
+            filters=RetrievalFilters(
+                uploaded_after=datetime(2026, 4, 1, tzinfo=timezone.utc),
+                uploaded_before=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            ),
+        )
+        assert {r["doc_id"] for r in results} == {"new"}

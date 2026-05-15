@@ -102,3 +102,13 @@ async def test_validation_with_ignore_orphans(vectorstore_factory):
             )
         assert report["exit_code"] == 0
         assert report["orphan_doc_ids"] == 1  # still counted, just not failing
+
+
+async def test_validation_passes_on_empty_corpus(vectorstore_factory):
+    """Validate against a collection with zero points — PASS (no fields missing, no orphans)."""
+    async with vectorstore_factory() as store:
+        async with db_module.async_session_maker() as session:
+            report = await run_validation(session=session, vectorstore=store)
+        assert report["exit_code"] == 0
+        assert report["scanned"] == 0
+        assert report["orphan_doc_ids"] == 0

@@ -97,3 +97,16 @@ async def test_delete_orphans_no_orphans_returns_empty_lists(live_doc_id, vector
         assert result["orphan_doc_ids"] == []
         assert result["deleted_doc_ids"] == []
         assert result["failed_deletes"] == []
+
+
+async def test_delete_orphans_empty_corpus(vectorstore_factory):
+    """Run delete_orphans against a collection with zero points — should return empty lists."""
+    async with vectorstore_factory() as store:
+        async with db_module.async_session_maker() as session:
+            result = await find_and_delete_orphans(
+                session=session, vectorstore=store, confirm=True,
+            )
+        assert result["orphan_doc_ids"] == []
+        assert result["deleted_doc_ids"] == []
+        assert result["failed_deletes"] == []
+        assert result["dry_run"] is False

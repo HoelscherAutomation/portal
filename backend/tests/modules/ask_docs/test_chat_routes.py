@@ -37,7 +37,7 @@ async def test_chat_streams_sse_events(client: AsyncClient, monkeypatch):
     """End-to-end SSE: orchestrator is mocked to emit a deterministic stream."""
 
     class FakeOrch:
-        async def run(self, *, query, user_id):
+        async def run(self, *, query, user_id, filters=None):
             yield {"type": "sources", "sources": [{"number": 1, "filename": "a.pdf", "page_num": 1, "content": "x"}]}
             yield {"type": "delta", "text": "Hello "}
             yield {"type": "delta", "text": "world."}
@@ -71,7 +71,7 @@ async def test_chat_emits_error_event_on_orchestrator_failure(client: AsyncClien
     """If orchestrator.run() raises mid-stream (e.g., LLM 4xx), the SSE stream emits an error event."""
 
     class FailingOrch:
-        async def run(self, *, query, user_id):
+        async def run(self, *, query, user_id, filters=None):
             yield {"type": "sources", "sources": []}
             raise RuntimeError("simulated LLM 400: credit balance too low")
 

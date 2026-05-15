@@ -9,7 +9,7 @@ from app.models import AskDocsQuery
 from app.modules.ask_docs.citations import apply_hallucination_guard, parse_citation_numbers
 from app.modules.ask_docs.prompts import SYSTEM_PROMPT, build_user_message
 from app.modules.ask_docs.retrieval import retrieve_sources
-from app.modules.ask_docs.retrieval_types import RetrievalQuery
+from app.modules.ask_docs.retrieval_types import RetrievalFilters, RetrievalQuery
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,13 @@ class ChatOrchestrator:
         self._reranker_enabled = reranker_enabled
         self._pre_rerank_top_k = pre_rerank_top_k
 
-    async def run(self, *, query: str, user_id: int | None) -> AsyncIterator[dict]:
+    async def run(
+        self,
+        *,
+        query: str,
+        user_id: int | None,
+        filters: RetrievalFilters | None = None,
+    ) -> AsyncIterator[dict]:
         """Yield events for SSE consumption.
 
         Events:
@@ -50,7 +56,11 @@ class ChatOrchestrator:
 
         if self._reranker_enabled and self._reranker is not None:
             candidates = await retrieve_sources(
-                query=RetrievalQuery(text=query, top_k=self._pre_rerank_top_k),
+                query=RetrievalQuery(
+                    text=query,
+                    top_k=self._pre_rerank_top_k,
+                    filters=filters or RetrievalFilters(),
+                ),
                 embeddings=self._embeddings,
                 vectorstore=self._vectorstore,
             )
@@ -67,7 +77,11 @@ class ChatOrchestrator:
             )
         else:
             sources = await retrieve_sources(
-                query=RetrievalQuery(text=query, top_k=self._top_k),
+                query=RetrievalQuery(
+                    text=query,
+                    top_k=self._top_k,
+                    filters=filters or RetrievalFilters(),
+                ),
                 embeddings=self._embeddings,
                 vectorstore=self._vectorstore,
             )

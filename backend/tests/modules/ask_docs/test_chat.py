@@ -6,6 +6,7 @@ from sqlalchemy import select
 import app.database as db_module
 from app.models import AskDocsQuery
 from app.modules.ask_docs.chat import ChatOrchestrator
+from app.modules.ask_docs.retrieval_types import RetrievalFilters
 
 
 def _fake_emb_and_store(chunks: list[dict]):
@@ -198,3 +199,63 @@ async def test_orchestrator_uses_reranker_when_enabled():
     assert q == "my-query"
     assert len(srcs) == 24
     assert top_n == 8
+
+
+async def test_orchestrator_passes_filters_to_retrieval():
+    """ChatOrchestrator.run forwards filters to vectorstore.search in the non-reranker path."""
+    chunks = [
+        {"doc_id": "d1", "page_num": 1, "chunk_index": 0, "content": "x", "source_path": "x.pdf"},
+    ]
+    fake_emb, fake_store = _fake_emb_and_store(chunks)
+    fake_llm = _fake_llm(["ok"])
+
+    orch = ChatOrchestrator(
+        embeddings=fake_emb,
+        vectorstore=fake_store,
+        llm=fake_llm,
+        llm_mode="anthropic",
+        top_k=8,
+        max_answer_tokens=1024,
+    )
+
+    filters = RetrievalFilters(doc_ids=["abc"], content_types=["application/pdf"])
+
+    async for _ in orch.run(query="hi", user_id=None, filters=filters):
+        pass
+
+    # vectorstore.search was called once (non-reranker path)
+    assert fake_store.search.call_count == 1
+    assert fake_store.search.call_args.kwargs["filters"] is filters
+
+
+async def test_orchestrator_passes_filters_in_reranker_path():
+    """When the second-stage scorer runs, the wider retrieval call must also carry filters."""
+    chunks = [
+        {"doc_id": "d1", "page_num": 1, "chunk_index": 0, "content": "x", "source_path": "x.pdf"},
+    ]
+    fake_emb, fake_store = _fake_emb_and_store(chunks)
+    fake_llm = _fake_llm(["ok"])
+    fake_reranker = _FakeReranker()
+
+    orch = ChatOrchestrator(
+        embeddings=fake_emb,
+        vectorstore=fake_store,
+        llm=fake_llm,
+        llm_mode="anthropic",
+        top_k=8,
+        max_answer_tokens=1024,
+        reranker=fake_reranker,
+        reranker_enabled=True,
+        pre_rerank_top_k=24,
+    )
+
+    filters = RetrievalFilters(doc_ids=["xyz"])
+
+    async for _ in orch.run(query="hi", user_id=None, filters=filters):
+        pass
+
+    # In the reranker path, there's still exactly one retrieve_sources call (wider top_k)
+    assert fake_store.search.call_count == 1
+    assert fake_store.search.call_args.kwargs["filters"] is filters
+    # Also confirm pre_rerank_top_k was used
+    assert fake_store.search.call_args.kwargs["top_k"] == 24

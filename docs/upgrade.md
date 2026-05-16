@@ -32,8 +32,8 @@ git pull origin main
 # 3. Pull updated Docker images (in case base images changed)
 docker compose pull
 
-# 4. Rebuild backend + worker images (in case requirements.txt changed)
-docker compose build backend worker
+# 4. Rebuild backend + worker + frontend images (deps or build steps may have changed)
+docker compose build backend worker frontend
 
 # 5. Apply any pending Alembic migrations
 docker compose up -d postgres
@@ -164,6 +164,14 @@ Single-major-step upgrades (e.g., 0.5.x → 0.6.x) follow the standard procedure
 Skipping major versions (e.g., 0.5.x → 0.7.x) is **not supported**. Migrations may not apply cleanly, and post-migration data fixups in 0.6.x may be required before 0.7.x can boot.
 
 If you've been on an old version for a while, upgrade through each major version in sequence, taking a backup at each step.
+
+### v0.6.x → v0.7.0 specifics
+
+v0.7.0 switches the frontend from a Vite dev server to a compiled production build (smaller image, faster cold start, no source maps). The standard upgrade procedure works, but two things are worth knowing:
+
+- **Frontend image must be rebuilt** — the new `frontend/Dockerfile` is multi-stage with a `runtime` target. `docker compose pull` won't help here (we don't publish images); `docker compose build frontend` runs the new build inside the multi-stage Dockerfile. The standard upgrade's `docker compose build backend worker` line should become `docker compose build backend worker frontend` for this upgrade.
+
+- **For developers using `docker-compose.override.yml`**: the override now needs `build.target: dev` to opt into the dev image (see the updated `docker-compose.override.yml.example`). After updating your local override, you also need to renew the anonymous `node_modules` volume once: `docker compose up -d --force-recreate -V frontend`. Without `-V`, the stale volume from the v0.6.x dev image will mask the new dev image's pre-installed `node_modules` and you'll see `vite: not found`. Operators (no override) are unaffected by this dev-mode quirk.
 
 ---
 

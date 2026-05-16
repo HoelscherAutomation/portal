@@ -145,7 +145,7 @@ If you'd rather run a local LLM via Ollama (no per-query cost, but slower + lowe
 BACKEND_PORT=8000           # Local port the FastAPI backend listens on
 COOKIE_SECURE=false         # Set to true once you put HTTPS in front (see "Production" below)
 CORS_ORIGINS=["http://localhost:5173"]  # Replace with your portal's external URL when behind HTTPS
-PORTAL_VERSION=0.6.1        # Used in backup manifests; advance when you upgrade
+PORTAL_VERSION=0.7.0        # Used in backup manifests; advance when you upgrade
 PUBLIC_API_URL=http://localhost:8000    # The URL the BROWSER will use to reach the backend
 ```
 

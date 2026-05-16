@@ -48,7 +48,7 @@ services:
       OC_URL: ${OC_URL:-}
       OC_TOKEN: ${OC_TOKEN:-}
       PHONE_HOME_INTERVAL_SECONDS: ${PHONE_HOME_INTERVAL_SECONDS:-300}
-      PORTAL_VERSION: ${PORTAL_VERSION:-0.6.1}
+      PORTAL_VERSION: ${PORTAL_VERSION:-0.7.0}
     volumes:
       - portal_uploads:/app/data/uploads
     ports:
@@ -72,6 +72,7 @@ services:
   frontend:
     build:
       context: ./frontend
+      target: runtime
     environment:
       PUBLIC_API_URL: ${PUBLIC_API_URL}
     ports:

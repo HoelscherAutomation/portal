@@ -48,7 +48,7 @@ services:
       OC_URL: ${OC_URL:-}
       OC_TOKEN: ${OC_TOKEN:-}
       PHONE_HOME_INTERVAL_SECONDS: ${PHONE_HOME_INTERVAL_SECONDS:-300}
-      PORTAL_VERSION: ${PORTAL_VERSION:-0.5.0}
+      PORTAL_VERSION: ${PORTAL_VERSION:-0.6.1}
     volumes:
       - portal_uploads:/app/data/uploads
     ports:
@@ -76,6 +76,14 @@ services:
       PUBLIC_API_URL: ${PUBLIC_API_URL}
     ports:
       - "${FRONTEND_PORT}:5173"
+    # 127.0.0.1, not localhost — the container's /etc/hosts resolves localhost to ::1
+    # first, but SvelteKit's dev server only binds IPv4 (0.0.0.0).
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
     depends_on:
       backend:
         condition: service_healthy

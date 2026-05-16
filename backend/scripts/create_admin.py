@@ -27,18 +27,22 @@ async def create_admin(email: str, password: str) -> None:
                 ),
                 safe=False,
             )
-            print(f"Created admin user: {user.email} (id={user.id})")
+            print(f"✓ Created admin user with superuser privileges: {user.email} (id={user.id})")
             return
 
 
 def main() -> int:
-    email = input("Admin email: ").strip()
+    email = input("Email: ").strip()
     if not email:
         print("Email is required.", file=sys.stderr)
         return 1
-    password = getpass.getpass("Admin password: ")
+    password = getpass.getpass("Password: ")
     if len(password) < 8:
         print("Password must be at least 8 characters.", file=sys.stderr)
+        return 1
+    confirm = getpass.getpass("Confirm: ")
+    if password != confirm:
+        print("Passwords do not match.", file=sys.stderr)
         return 1
     try:
         asyncio.run(create_admin(email, password))

@@ -39,6 +39,8 @@ Everything runs in Docker on hardware you control. Documents never leave your se
 
 This guide assumes Ubuntu 22.04 or 24.04. Other Debian-based distros work the same. RHEL/Fedora users will need to translate `apt` → `dnf`.
 
+> **On a minimal cloud image?** Some VPS providers ship "minimal" Ubuntu variants without `curl`. If `curl --version` fails, install it first: `sudo apt update && sudo apt install -y curl`.
+
 ### 1. Install Docker
 
 ```bash
@@ -143,10 +145,13 @@ If you'd rather run a local LLM via Ollama (no per-query cost, but slower + lowe
 BACKEND_PORT=8000           # Local port the FastAPI backend listens on
 COOKIE_SECURE=false         # Set to true once you put HTTPS in front (see "Production" below)
 CORS_ORIGINS=["http://localhost:5173"]  # Replace with your portal's external URL when behind HTTPS
-PORTAL_VERSION=0.5.0        # Used in backup manifests; advance when you upgrade
+PORTAL_VERSION=0.6.1        # Used in backup manifests; advance when you upgrade
+PUBLIC_API_URL=http://localhost:8000    # The URL the BROWSER will use to reach the backend
 ```
 
 ⚠️ **Never set `CORS_ORIGINS=["*"]`** — the portal refuses to start with a wildcard since cookies + wildcard CORS is a known browser-bypassable combination.
+
+⚠️ **`PUBLIC_API_URL` matters more than it looks.** This is the backend URL the *browser's JavaScript* will call — it's read by the frontend and passed to the user's browser. The default `http://localhost:8000` only works when the user opens the portal *on the server itself*. If users access the portal from their own laptops (the normal case), `PUBLIC_API_URL` must be set to a URL their browser can actually reach — e.g., your server's IP for LAN-only installs (`http://192.168.10.20:8000`) or your portal's HTTPS domain for production (`https://portal.your-company.com/api`, with a Caddy reverse proxy — see "Production deployment" below). After changing `PUBLIC_API_URL`, recreate the frontend: `docker compose up -d --force-recreate frontend`.
 
 ---
 
@@ -172,7 +177,7 @@ First boot takes ~60 seconds. Watch progress:
 docker compose ps
 ```
 
-Wait until all 7 services show `(healthy)` (worker takes ~90s to register its arq health check — be patient).
+Wait until all 7 services show `(healthy)` in the STATUS column. Most services come up within ~30 seconds; the slowest is the worker (its arq healthcheck has a 90-second `start_period` to give Python imports + the first Redis dial time to complete on slow disks). On a normal install you'll see `(healthy)` on the worker between 30 and 90 seconds in.
 
 If anything shows `(unhealthy)` after 2 minutes, see [troubleshooting.md](./troubleshooting.md#first-boot-failures).
 
@@ -182,7 +187,7 @@ If anything shows `(unhealthy)` after 2 minutes, see [troubleshooting.md](./trou
 docker compose exec backend alembic upgrade head
 ```
 
-Output should end with `INFO  [alembic.runtime.migration] Will assume transactional DDL.` and a list of `Running upgrade ... -> ...` lines.
+Output starts with `INFO [alembic.runtime.migration] Will assume transactional DDL.`, followed by one `Running upgrade ... -> ...` line per migration. The last `Running upgrade` line is the most recent migration applied — for a fresh install on v0.6.x that's `... -> 72aa95c0b171, add ask_docs_migration_state`.
 
 ### Pull the embeddings model
 
@@ -206,7 +211,7 @@ Interactive prompt:
 Email: you@your-company.com
 Password: <enter a strong password>
 Confirm: <enter again>
-✓ User created with superuser privileges
+✓ Created admin user with superuser privileges: you@your-company.com (id=1)
 ```
 
 This user can log in to the portal AND access the `/admin/*` routes.
@@ -267,11 +272,13 @@ The recommended setup:
    ```
    COOKIE_SECURE=true
    CORS_ORIGINS=["https://portal.your-company.com"]
+   PUBLIC_API_URL=https://portal.your-company.com/api
    ```
-4. **Restart** the backend so the new env takes effect:
+4. **Restart** the affected services so the new env takes effect:
    ```bash
-   docker compose up -d --force-recreate backend
+   docker compose up -d --force-recreate backend frontend
    ```
+   (Frontend must restart too — `PUBLIC_API_URL` is read at container start.)
 
 A minimal Caddyfile:
 

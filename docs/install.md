@@ -67,12 +67,16 @@ That's it for OS prereqs. Everything else runs in containers.
 
 ## Get the portal code
 
+The portal source is hosted at [github.com/HoelscherAutomation/portal](https://github.com/HoelscherAutomation/portal). Clone it with:
+
 ```bash
 git clone https://github.com/HoelscherAutomation/portal.git
 cd portal
 ```
 
-If you've been given a private fork, replace the URL.
+This is the same repository you'll pull updates from later — see [upgrade.md](./upgrade.md) for the standard `git pull` upgrade flow once you're running.
+
+> **Note for developers:** the file `docker-compose.override.yml.example` is provided as a starting point if you want to enable bind-mounted source + auto-reload for local development. Operators running a production install should leave it alone — Docker Compose only applies an override file if it's named `docker-compose.override.yml` (no `.example`).
 
 ---
 

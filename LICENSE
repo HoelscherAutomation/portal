@@ -1,0 +1,22 @@
+Hoelscher Automation Portal License
+
+Copyright (c) 2026 Hoelscher Automation LLC
+
+This source code is provided to authorized customers of
+Hoelscher Automation under a separate commercial license.
+
+Authorized customers may:
+  - Install and operate the portal on infrastructure they
+    control, for their own internal business purposes
+  - Modify the source for their own deployments
+  - Pull updates from this repository
+
+Authorized customers may NOT:
+  - Redistribute the source or compiled forms publicly
+  - Resell, sublicense, or offer the portal as a service
+    to third parties
+  - Remove or alter copyright notices
+
+All other rights reserved.
+
+For licensing inquiries: hoelscher.jordan@gmail.com

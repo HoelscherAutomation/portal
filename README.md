@@ -6,8 +6,6 @@ Self-hosted modular employee portal.
 
 **For operators (IT installing + maintaining a customer install):** read [`docs/index.md`](./docs/index.md). Covers install, first-run, day-to-day operation, backup/restore, upgrade, security, and troubleshooting.
 
-**For internal design + implementation history:** see `../docs/superpowers/specs/` (design intent) and `../docs/superpowers/plans/` (task-by-task implementation plans).
-
 ## Quick start (local dev)
 
 ```bash

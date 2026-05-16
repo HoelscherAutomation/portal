@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.modules.ask_docs.retrieval_types import RetrievalFilters
+
 
 class DocumentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -20,3 +22,4 @@ class DocumentRead(BaseModel):
 
 class ChatRequest(BaseModel):
     query: str
+    filters: RetrievalFilters | None = None

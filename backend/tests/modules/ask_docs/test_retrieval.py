@@ -4,6 +4,7 @@ import pytest
 
 from app.modules.ask_docs.prompts import FormattedSource
 from app.modules.ask_docs.retrieval import retrieve_sources
+from app.modules.ask_docs.retrieval_types import RetrievalFilters, RetrievalQuery
 
 
 async def test_retrieves_and_formats_sources():
@@ -19,8 +20,7 @@ async def test_retrieves_and_formats_sources():
     fake_store.aclose = AsyncMock()
 
     sources = await retrieve_sources(
-        query="hello",
-        top_k=2,
+        query=RetrievalQuery(text="hello", top_k=2),
         embeddings=fake_emb,
         vectorstore=fake_store,
     )
@@ -47,9 +47,42 @@ async def test_empty_when_no_chunks_indexed():
     fake_store.aclose = AsyncMock()
 
     sources = await retrieve_sources(
-        query="anything",
-        top_k=8,
+        query=RetrievalQuery(text="anything", top_k=8),
         embeddings=fake_emb,
         vectorstore=fake_store,
     )
     assert sources == []
+
+
+class _StubEmbeddings:
+    async def embed(self, text: str) -> list[float]:
+        return [1.0, 0.0, 0.0, 0.0]
+
+    async def aclose(self) -> None:  # pragma: no cover
+        return None
+
+
+class _RecordingVectorstore:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    async def search(self, *, query_vector, top_k, filters=None):
+        self.calls.append({"query_vector": query_vector, "top_k": top_k, "filters": filters})
+        return [{
+            "doc_id": "x", "page_num": 1, "chunk_index": 0,
+            "content": "hello", "source_path": "x.pdf",
+        }]
+
+    async def aclose(self) -> None:  # pragma: no cover
+        return None
+
+
+async def test_retrieve_sources_passes_filters_through() -> None:
+    embeddings = _StubEmbeddings()
+    vs = _RecordingVectorstore()
+    filters = RetrievalFilters(doc_ids=["x"])
+    query = RetrievalQuery(text="hello", top_k=5, filters=filters)
+    result = await retrieve_sources(query=query, embeddings=embeddings, vectorstore=vs)
+    assert len(result) == 1
+    assert vs.calls[0]["top_k"] == 5
+    assert vs.calls[0]["filters"] is filters

@@ -1,8 +1,9 @@
-"""Retrieval pipeline: query → embed → Qdrant top-K → formatted sources."""
+"""Retrieval pipeline: query then embed then Qdrant top-K then formatted sources."""
 import logging
 from typing import Protocol
 
 from app.modules.ask_docs.prompts import FormattedSource
+from app.modules.ask_docs.retrieval_types import RetrievalFilters, RetrievalQuery
 
 logger = logging.getLogger(__name__)
 
@@ -15,26 +16,35 @@ class _Embeddings(Protocol):
 
 
 class _Vectorstore(Protocol):
-    async def search(self, *, query_vector: list[float], top_k: int) -> list[dict]: ...
+    async def search(
+        self,
+        *,
+        query_vector: list[float],
+        top_k: int,
+        filters: RetrievalFilters | None = None,
+    ) -> list[dict]: ...
     async def aclose(self) -> None: ...
 
 
 async def retrieve_sources(
     *,
-    query: str,
-    top_k: int,
+    query: RetrievalQuery,
     embeddings: _Embeddings,
     vectorstore: _Vectorstore,
 ) -> list[FormattedSource]:
-    """Embed the query, search Qdrant, return formatted sources (1-indexed numbering).
+    """Embed the query, search Qdrant with optional filters, return formatted sources.
 
     Drops any chunk with a malformed payload (missing required keys) and logs
     the issue. Returning a synthesized "unknown / page 1 / empty content"
     citation would mask the real bug — better to skip + log so the operator
     sees something happened.
     """
-    vector = await embeddings.embed(query)
-    raw = await vectorstore.search(query_vector=vector, top_k=top_k)
+    vector = await embeddings.embed(query.text)
+    raw = await vectorstore.search(
+        query_vector=vector,
+        top_k=query.top_k,
+        filters=query.filters,
+    )
 
     sources: list[FormattedSource] = []
     for payload in raw:

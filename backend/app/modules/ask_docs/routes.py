@@ -251,7 +251,7 @@ async def chat(
 
     async def _event_stream() -> AsyncIterator[bytes]:
         try:
-            async for event in orchestrator.run(query=payload.query, user_id=user.id):
+            async for event in orchestrator.run(query=payload.query, user_id=user.id, filters=payload.filters):
                 yield f"data: {json.dumps(event)}\n\n".encode("utf-8")
         except Exception as exc:
             # Headers already sent; can't return 5xx. Emit an error event so the

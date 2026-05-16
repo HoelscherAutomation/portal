@@ -37,7 +37,7 @@ async def test_chat_streams_sse_events(client: AsyncClient, monkeypatch):
     """End-to-end SSE: orchestrator is mocked to emit a deterministic stream."""
 
     class FakeOrch:
-        async def run(self, *, query, user_id):
+        async def run(self, *, query, user_id, filters=None):
             yield {"type": "sources", "sources": [{"number": 1, "filename": "a.pdf", "page_num": 1, "content": "x"}]}
             yield {"type": "delta", "text": "Hello "}
             yield {"type": "delta", "text": "world."}
@@ -71,7 +71,7 @@ async def test_chat_emits_error_event_on_orchestrator_failure(client: AsyncClien
     """If orchestrator.run() raises mid-stream (e.g., LLM 4xx), the SSE stream emits an error event."""
 
     class FailingOrch:
-        async def run(self, *, query, user_id):
+        async def run(self, *, query, user_id, filters=None):
             yield {"type": "sources", "sources": []}
             raise RuntimeError("simulated LLM 400: credit balance too low")
 
@@ -129,3 +129,80 @@ async def test_get_chunk_returns_payload(client: AsyncClient, monkeypatch):
     assert body["content"] == "the chunk content"
     assert body["page_num"] == 5
     assert captured == {"doc_id": "some-doc-id", "chunk_index": 3}
+
+
+async def test_chat_route_rejects_unknown_filter_field(client: AsyncClient, monkeypatch):
+    """Unknown fields inside filters should 422 (extra='forbid' on RetrievalFilters)."""
+    # Stub the orchestrator factory so we don't fail with 503 due to missing LLM config.
+    async def _fake_make():
+        return None
+    monkeypatch.setattr(
+        "app.modules.ask_docs.routes._make_orchestrator",
+        _fake_make,
+    )
+    await _login(client)
+    response = await client.post(
+        "/api/modules/ask-docs/chat",
+        json={"query": "hello", "filters": {"filename": ["foo.pdf"]}},
+    )
+    assert response.status_code == 422
+
+
+async def test_chat_route_rejects_inverted_date_range(client: AsyncClient, monkeypatch):
+    """uploaded_after >= uploaded_before should 422 via the model_validator."""
+    async def _fake_make():
+        return None
+    monkeypatch.setattr(
+        "app.modules.ask_docs.routes._make_orchestrator",
+        _fake_make,
+    )
+    await _login(client)
+    response = await client.post(
+        "/api/modules/ask-docs/chat",
+        json={
+            "query": "hello",
+            "filters": {
+                "uploaded_after": "2026-06-01T00:00:00Z",
+                "uploaded_before": "2026-01-01T00:00:00Z",
+            },
+        },
+    )
+    assert response.status_code == 422
+
+
+async def test_chat_route_accepts_filters(client: AsyncClient, monkeypatch):
+    """A request with valid filters reaches the orchestrator and returns SSE 200."""
+
+    captured: dict = {}
+
+    class FakeOrch:
+        async def run(self, *, query, user_id, filters=None):
+            captured["query"] = query
+            captured["filters"] = filters
+            yield {"type": "sources", "sources": []}
+            yield {"type": "final", "answer": "ok", "citations": []}
+
+        async def close_clients(self):
+            return None
+
+    async def _fake_make():
+        return FakeOrch()
+    monkeypatch.setattr(
+        "app.modules.ask_docs.routes._make_orchestrator",
+        _fake_make,
+    )
+
+    await _login(client)
+    response = await client.post(
+        "/api/modules/ask-docs/chat",
+        json={
+            "query": "hello",
+            "filters": {"doc_ids": ["nonexistent-doc-id"]},
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+
+    # The orchestrator received a RetrievalFilters with the doc_ids list
+    assert captured["filters"] is not None
+    assert captured["filters"].doc_ids == ["nonexistent-doc-id"]

@@ -165,7 +165,7 @@ portal.your-company.com {
 }
 ```
 
-`/api/health` returns only `{"status": "ok"}` — no internal state — so it's safe to expose unauth.
+`/api/health` returns only `{"status": "ok"}`, or 503 `{"detail": "database unavailable"}` when the database cannot be reached — no internal state — so it's safe to expose unauth.
 
 ---
 

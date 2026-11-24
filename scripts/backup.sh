@@ -46,8 +46,7 @@ WORK=$(mktemp -d "/tmp/portal-backup-$TS-XXXXXX")
 # Single-quoted trap so $WORK is expanded at trap-fire time + properly quoted
 trap 'rm -rf "$WORK"' EXIT
 
-PORTAL_VERSION=$(grep '^PORTAL_VERSION=' .env | cut -d= -f2- || echo "0.0.0")
-PORTAL_VERSION=${PORTAL_VERSION:-0.0.0}
+PORTAL_VERSION=$(cat backend/VERSION 2>/dev/null) || { echo "ERROR: backend/VERSION not readable (run from the repo root)" >&2; exit 1; }
 
 BACKEND_CONTAINER=$(docker compose ps backend --format '{{.Name}}' | head -1)
 QDRANT_CONTAINER=$(docker compose ps qdrant --format '{{.Name}}' | head -1)

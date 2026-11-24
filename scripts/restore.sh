@@ -68,8 +68,7 @@ echo "▶ Extracting $ARCHIVE → $WORK"
 tar xzf "$ARCHIVE" -C "$WORK" --no-same-owner --no-overwrite-dir
 
 # ── 1. Validate manifest ─────────────────────────────────────────────────────
-CURRENT_VERSION=$(grep '^PORTAL_VERSION=' .env | cut -d= -f2- || echo "0.0.0")
-CURRENT_VERSION=${CURRENT_VERSION:-0.0.0}
+CURRENT_VERSION=$(cat backend/VERSION 2>/dev/null) || { echo "ERROR: backend/VERSION not readable (run from the repo root)" >&2; exit 1; }
 
 echo "▶ Validating manifest (current portal=$CURRENT_VERSION)"
 docker compose exec -T backend rm -rf /tmp/restore-work

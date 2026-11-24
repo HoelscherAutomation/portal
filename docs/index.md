@@ -49,7 +49,7 @@ End-user documentation (for employees who just want to use Ask Docs to find answ
 - **Code blocks include the directory context** (e.g., "From the repo root:") since many commands are sensitive to working directory
 - **Warnings are flagged with ⚠️** for things that can lose data or leak secrets
 - **Cross-references use full filenames** (`./install.md` not `install`) for portability
-- **Versions are written as `0.5.0`** matching the `PORTAL_VERSION` env var convention
+- **Versions are written as `0.5.0`** matching `backend/VERSION`
 - **Customer-facing examples use `your-company.com`** — replace with the actual customer domain when applying
 
 ---

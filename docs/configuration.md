@@ -91,8 +91,7 @@ If you've signed up for managed operator-console support (Hoelscher Automation p
 
 ### `PORTAL_VERSION`
 
-- **Default:** `0.5.0`
-- **Set to:** the version of the portal you're running. Surfaced in phone-home heartbeats + backup manifests + the "What works" README header. Advance when you `git pull` a new release.
+- **Not set in `.env` any more (0.7.1).** The version comes from `backend/VERSION` in the release you are running, so a `git pull` of a new release advances it by itself. Surfaced in phone-home heartbeats and backup manifests. A `PORTAL_VERSION=` line left in an older `.env` is ignored; delete it.
 
 ---
 

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -61,7 +62,8 @@ class Settings(BaseSettings):
     oc_url: str | None = None
     oc_token: str | None = None
     phone_home_interval_seconds: int = 300
-    portal_version: str = "0.5.1"
+    # The one version source is backend/VERSION (read by the backup/restore scripts too).
+    portal_version: str = (Path(__file__).resolve().parents[1] / "VERSION").read_text().strip()
     # Ask Docs (P1.1)
     qdrant_url: str = "http://qdrant:6333"
     ollama_url: str = "http://ollama:11434"

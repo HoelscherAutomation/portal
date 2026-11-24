@@ -68,23 +68,17 @@ If anything's broken: restore the pre-upgrade backup.
 
 ---
 
-## Updating `PORTAL_VERSION`
+## `PORTAL_VERSION`
 
-Bump the value in `.env` to match the new release:
+Nothing to edit (0.7.1+): the version is `backend/VERSION` in the release you pulled, read by the backend
+and by `scripts/backup.sh` / `scripts/restore.sh`. Rebuild the backend after the pull so it reports it. An
+older `.env` may still carry a `PORTAL_VERSION=` line; it is ignored, so delete it.
 
-```
-PORTAL_VERSION=0.6.0
-```
-
-This affects:
-- Phone-home heartbeats (OC sees the new version)
-- Backup manifests (restore validates against this)
-- The `/admin/modules/ask-docs` dashboard's cost-estimate "prices as of" string (no — that's a different constant)
-
-After updating `.env`:
+The version is what phone-home heartbeats report to the Operator Console and what backup manifests carry
+(restore refuses a backup from a newer portal). To make the running backend report it after a pull:
 
 ```bash
-docker compose up -d --force-recreate backend worker
+docker compose up -d --build backend worker
 ```
 
 ---

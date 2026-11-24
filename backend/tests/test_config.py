@@ -45,3 +45,13 @@ def test_settings_rejects_cors_wildcard_with_credentials(monkeypatch):
     monkeypatch.setenv("CORS_ORIGINS", '["*"]')
     with pytest.raises(ValueError, match="unsafe"):
         Settings()
+
+
+def test_portal_version_comes_from_the_version_file():
+    """backend/VERSION is the one version source; the settings default must read it."""
+    from pathlib import Path
+
+    from app.config import Settings
+
+    version_file = Path(__file__).resolve().parents[1] / "VERSION"
+    assert Settings.model_fields["portal_version"].default == version_file.read_text().strip()

@@ -51,7 +51,6 @@ services:
       OC_URL: ${OC_URL:-}
       OC_TOKEN: ${OC_TOKEN:-}
       PHONE_HOME_INTERVAL_SECONDS: ${PHONE_HOME_INTERVAL_SECONDS:-300}
-      PORTAL_VERSION: ${PORTAL_VERSION:-0.7.0}
     volumes:
       - portal_uploads:/app/data/uploads
     ports:
